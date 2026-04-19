@@ -1,0 +1,167 @@
+{
+  "name": "pdp11-asm-lsp-server",
+  "displayName": "PDP-11 Assembler LSP server and Tools",
+  "description": "LSP server and language support for PDP-11 assembly",
+  "version": "0.1.1",
+  "publisher": "kalininskiy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kalininskiy/pdp11-asm-lsp-server.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "icon": "images/pdp11lsp.png",
+  "keywords": [
+    "bk-0010",
+    "бк",
+    "pdp11",
+    "pdp-11",
+    "LSP",
+    "assembler",
+    "ассемблер",
+    "pdpy11",
+    "macro11",
+    "macro-11",
+    "bkturbo8",
+    "retro"
+  ],
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:pdp11-asm"
+  ],
+  "main": "./client/out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "pdp11-asm",
+        "aliases": [
+          "PDP-11 Assembler",
+          "pdp11asm"
+        ],
+        "extensions": [
+          ".s",
+          ".asm",
+          ".mac"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pdp11-asm",
+        "scopeName": "source.pdp11asm",
+        "path": "./syntaxes/pdp11-asm.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "pdp11-asm",
+        "path": "./snippets/pdp11.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "pdp11.selectPdpy11Path",
+        "title": "PDP-11: Select pdpy11 Executable"
+      },
+      {
+        "command": "pdp11.selectBkTurbo8Path",
+        "title": "PDP-11: Select BKTurbo8 Executable"
+      },
+      {
+        "command": "pdp11.selectMacro11Path",
+        "title": "PDP-11: Select MACRO11 Executable"
+      },
+      {
+        "command": "pdp11.assembleWithPdpy11",
+        "title": "PDP-11: Assemble with pdpy11"
+      },
+      {
+        "command": "pdp11.assembleWithBkturbo8",
+        "title": "PDP-11: Assemble with BKTurbo8"
+      },
+      {
+        "command": "pdp11.assembleWithMacro11",
+        "title": "PDP-11: Assemble with MACRO11"
+      }
+    ],
+    "configuration": {
+      "title": "PDP-11 Assembler",
+      "properties": {
+        "pdp11.targetProfile": {
+          "type": "string",
+          "enum": [
+            "BK-0010",
+            "BK-0011M",
+            "UKNC"
+          ],
+          "default": "BK-0010",
+          "description": "Target hardware profile for semantic constraints and timings."
+        },
+        "pdp11.enableAssemblerDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable diagnostics from external assembler output."
+        },
+        "pdp11.selectedAssembler": {
+          "type": "string",
+          "enum": [
+            "none",
+            "pdpy11",
+            "bkturbo8",
+            "macro11"
+          ],
+          "default": "none",
+          "description": "Select which external assembler adapter to run for diagnostics."
+        },
+        "pdp11.pdpy11Path": {
+          "type": "string",
+          "default": "pdpy11",
+          "description": "Path to pdpy11 executable."
+        },
+        "pdp11.bkturbo8Path": {
+          "type": "string",
+          "default": "bkturbo8",
+          "description": "Path to BKTurbo8 executable or wrapper."
+        },
+        "pdp11.macro11Path": {
+          "type": "string",
+          "default": "macro11",
+          "description": "Path to MACRO11 executable."
+        },
+        "pdp11.assemblerArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional arguments appended when running external assembler."
+        },
+        "pdp11.assemblerTimeoutMs": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 500,
+          "description": "Timeout in milliseconds for external assembler invocation."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npm run -w server compile && npm run -w client compile",
+    "watch": "npm run -w server watch & npm run -w client watch",
+    "lint": "npm run -w server lint && npm run -w client lint"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.6.3"
+  }
+}

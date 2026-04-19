@@ -1,0 +1,94 @@
+{
+  "Startup Code": {
+    "prefix": "pdp-startup",
+    "body": [
+      ".org 1000",
+      "START:",
+      "    MOV #STACK_TOP, SP",
+      "    CLR R0",
+      "    ; init code",
+      "    BR MAIN",
+      "",
+      "MAIN:",
+      "    ; ...",
+      "    HALT",
+      "",
+      "STACK_TOP: .word 0"
+    ],
+    "description": "Minimal startup sequence"
+  },
+  "Interrupt Handler": {
+    "prefix": "pdp-int",
+    "body": [
+      "${1:INT_HANDLER}:",
+      "    MOV R0, -(SP)",
+      "    MOV R1, -(SP)",
+      "    ; handler body",
+      "    MOV (SP)+, R1",
+      "    MOV (SP)+, R0",
+      "    RTI"
+    ],
+    "description": "Interrupt handler prologue/epilogue"
+  },
+  "Push Register": {
+    "prefix": "pdp-pushr",
+    "body": [
+      "    MOV ${1:R0}, -(SP)",
+      "    ",
+      "    MOV (SP)+, ${1:R0}"
+    ],
+    "description": "Push one register to stack"
+  },
+  "Push All Registers": {
+    "prefix": "pdp-pushall",
+    "body": [
+      "    MOV R0, -(SP)",
+      "    MOV R1, -(SP)",
+      "    MOV R2, -(SP)",
+      "    MOV R3, -(SP)",
+      "    MOV R4, -(SP)",
+      "    MOV R5, -(SP)",
+      "    ${1}",
+      "    MOV (SP)+, R5",
+      "    MOV (SP)+, R4",
+      "    MOV (SP)+, R3",
+      "    MOV (SP)+, R2",
+      "    MOV (SP)+, R1",
+      "    MOV (SP)+, R0"
+    ],
+    "description": "Push common working registers"
+  },
+  "Subroutine Template": {
+    "prefix": "pdp-subr",
+    "body": [
+      "; subroutine ${1:SUBR_NAME}",
+      "${1:SUBR_NAME}:",
+      "    MOV R5, -(SP)",
+      "    MOV SP, R5",
+      "    ; body",
+      "    MOV (SP)+, R5",
+      "    RTS PC",
+      "; end subroutine ${1:SUBR_NAME}"
+    ],
+    "description": "Subroutine with frame setup"
+  },
+  "EMT20 Template": {
+    "prefix": "pdp-emt20",
+    "body": [
+      "    MOV ${1:String}, R1",
+      "    CLR R2",
+      "    EMT 20"
+    ],
+    "description": "EMT 20 call with string argument"
+  },
+  "SOB LOOP Template": {
+    "prefix": "pdp-loop-sobr",
+    "body": [
+      "    MOV ${1:#100}, ${2:R0}",
+      "${3:LOOP_LABEL}:",
+      "    ; loop body",
+      "    SOB ${2:R0}, ${3:LOOP_LABEL}"
+    ],
+    "description": "SOB loop template"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PDP11: Build with pdpy11",
+      "type": "shell",
+      "command": "${config:pdp11.pdpy11Path}",
+      "args": [
+        "${file}"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "PDP11: Build with BKTurbo8",
+      "type": "shell",
+      "command": "${config:pdp11.bkturbo8Path}",
+      "args": [
+        "${file}"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "PDP11: Build with MACRO11",
+      "type": "shell",
+      "command": "${config:pdp11.macro11Path}",
+      "args": [
+        "${file}"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
