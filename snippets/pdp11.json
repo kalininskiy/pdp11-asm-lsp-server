@@ -1,60 +1,81 @@
 {
   "Startup Code": {
-    "prefix": "pdp-startup",
+    "prefix": "pdp-hello",
     "body": [
-      ".org 1000",
-      "START:",
-      "    MOV #STACK_TOP, SP",
-      "    CLR R0",
-      "    ; init code",
-      "    BR MAIN",
-      "",
-      "MAIN:",
-      "    ; ...",
-      "    HALT",
-      "",
-      "STACK_TOP: .word 0"
+      "MOV\t#HELLO,R1",
+      "CLR\tR2",
+      "EMT\t20",
+      "STOP:\tHALT",
+      "HELLO:\t.ASCIZ \"Hello World!\"",
+      "\t.END"
     ],
     "description": "Minimal startup sequence"
   },
-  "Interrupt Handler": {
-    "prefix": "pdp-int",
+  "Startup Code lowercase": {
+    "prefix": "pdp-hello-lowercase",
     "body": [
-      "${1:INT_HANDLER}:",
-      "    MOV R0, -(SP)",
-      "    MOV R1, -(SP)",
-      "    ; handler body",
-      "    MOV (SP)+, R1",
-      "    MOV (SP)+, R0",
-      "    RTI"
+      "mov\t#hello,r1",
+      "clr\tr2",
+      "emt\t20",
+      "STOP:\thalt",
+      "HELLO:\t.ASCIZ \"Hello World!\"",
+      "\t.end"
     ],
-    "description": "Interrupt handler prologue/epilogue"
+    "description": "Minimal startup sequence"
   },
   "Push Register": {
     "prefix": "pdp-pushr",
     "body": [
-      "    MOV ${1:R0}, -(SP)",
-      "    ",
-      "    MOV (SP)+, ${1:R0}"
+      "MOV R${1:0}, -(SP)",
+      "",
+      "MOV (SP)+, R${1:0}"
+    ],
+    "description": "Push one register to stack"
+  },
+  "Push Register lowercase": {
+    "prefix": "pdp-pushr-lowercase",
+    "body": [
+      "mov R${1:0}, -(SP)",
+      "",
+      "mov (SP)+, R${1:0}"
     ],
     "description": "Push one register to stack"
   },
   "Push All Registers": {
     "prefix": "pdp-pushall",
     "body": [
-      "    MOV R0, -(SP)",
-      "    MOV R1, -(SP)",
-      "    MOV R2, -(SP)",
-      "    MOV R3, -(SP)",
-      "    MOV R4, -(SP)",
-      "    MOV R5, -(SP)",
-      "    ${1}",
-      "    MOV (SP)+, R5",
-      "    MOV (SP)+, R4",
-      "    MOV (SP)+, R3",
-      "    MOV (SP)+, R2",
-      "    MOV (SP)+, R1",
-      "    MOV (SP)+, R0"
+      "MOV R0, -(SP)",
+      "MOV R1, -(SP)",
+      "MOV R2, -(SP)",
+      "MOV R3, -(SP)",
+      "MOV R4, -(SP)",
+      "MOV R5, -(SP)",
+      "${1}",
+      "MOV (SP)+, R5",
+      "MOV (SP)+, R4",
+      "MOV (SP)+, R3",
+      "MOV (SP)+, R2",
+      "MOV (SP)+, R1",
+      "MOV (SP)+, R0"
+    ],
+    "description": "Push common working registers"
+  },
+  "Push All Registers lowercase": {
+    "prefix": "pdp-pushall-lowercase",
+    "body": [
+      "mov R0, -(SP)",
+      "mov R1, -(SP)",
+      "mov R2, -(SP)",
+      "mov R3, -(SP)",
+      "mov R4, -(SP)",
+      "mov R5, -(SP)",
+      "${1}",
+      "mov (SP)+, R5",
+      "mov (SP)+, R4",
+      "mov (SP)+, R3",
+      "mov (SP)+, R2",
+      "mov (SP)+, R1",
+      "mov (SP)+, R0"
     ],
     "description": "Push common working registers"
   },
@@ -63,11 +84,25 @@
     "body": [
       "; subroutine ${1:SUBR_NAME}",
       "${1:SUBR_NAME}:",
-      "    MOV R5, -(SP)",
-      "    MOV SP, R5",
-      "    ; body",
-      "    MOV (SP)+, R5",
-      "    RTS PC",
+      "\tMOV R5, -(SP)",
+      "\tMOV SP, R5",
+      "\t; body",
+      "\tMOV (SP)+, R5",
+      "\tRTS PC",
+      "; end subroutine ${1:SUBR_NAME}"
+    ],
+    "description": "Subroutine with frame setup"
+  },
+  "Subroutine Template lowercase": {
+    "prefix": "pdp-subr-lowercase",
+    "body": [
+      "; subroutine ${1:SUBR_NAME}",
+      "${1:SUBR_NAME}:",
+      "\tmov R5, -(SP)",
+      "\tmov SP, R5",
+      "\t; body",
+      "\tmov (SP)+, R5",
+      "\trts PC",
       "; end subroutine ${1:SUBR_NAME}"
     ],
     "description": "Subroutine with frame setup"
@@ -75,19 +110,38 @@
   "EMT20 Template": {
     "prefix": "pdp-emt20",
     "body": [
-      "    MOV ${1:String}, R1",
-      "    CLR R2",
-      "    EMT 20"
+      "MOV ${1:#String}, R1",
+      "CLR R2",
+      "EMT 20"
+    ],
+    "description": "EMT 20 call with string argument"
+  },
+  "EMT20 Template lowercase": {
+    "prefix": "pdp-emt20-lowercase",
+    "body": [
+      "mov ${1:#String}, R1",
+      "clr R2",
+      "emt 20"
     ],
     "description": "EMT 20 call with string argument"
   },
   "SOB LOOP Template": {
     "prefix": "pdp-loop-sobr",
     "body": [
-      "    MOV ${1:#100}, ${2:R0}",
+      "\tMOV ${1:#100}, R${2:0}",
       "${3:LOOP_LABEL}:",
-      "    ; loop body",
-      "    SOB ${2:R0}, ${3:LOOP_LABEL}"
+      "\t; loop body",
+      "\tSOB R${2:0}, ${3:LOOP_LABEL}"
+    ],
+    "description": "SOB loop template"
+  },
+  "SOB LOOP Template lowercase": {
+    "prefix": "pdp-loop-sobr-lowercase",
+    "body": [
+      "\tmov ${1:#100}, R${2:0}",
+      "${3:LOOP_LABEL}:",
+      "\t; loop body",
+      "\tsob R${2:0}, ${3:LOOP_LABEL}"
     ],
     "description": "SOB loop template"
   }

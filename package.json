@@ -2,7 +2,7 @@
   "name": "pdp11-asm-lsp-server",
   "displayName": "PDP-11 Assembly LSP server and Tools",
   "description": "LSP server and language support for PDP-11 assembly",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "kalininskiy",
   "repository": {
     "type": "git",
