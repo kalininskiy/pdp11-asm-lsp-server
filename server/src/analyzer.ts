@@ -53,7 +53,12 @@ function normalizeSymbolKey(name: string): string {
 }
 
 function isLocalSymbol(name: string): boolean {
-  return name.startsWith(".") || /^[0-9]+\$$/.test(name) || name.startsWith("@@");
+  return (
+    name.startsWith(".") ||
+    /^[0-9]+\$?$/.test(name) ||
+    name.endsWith("$") ||
+    name.startsWith("@@")
+  );
 }
 
 function makeScopedName(name: string, scope: string): string {
@@ -72,6 +77,17 @@ function extractAddressCandidate(op: OperandNode): string | undefined {
 
 function validateInstruction(meta: InstructionMeta, line: number, operandKinds: string[]): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
+
+  // Специальные исключения для некоторых инструкций, которые могут принимать нестандартные операнды
+  const opcode = meta.mnemonic;
+
+  if (opcode === "DEC" || opcode === "INC" || opcode === "CLR" || opcode === "COM" || opcode === "NEG") {
+    // Разрешаем immediate как destination для этих инструкций
+    if (operandKinds.length === 1 && operandKinds[0] === "immediate") {
+      return []; // считаем валидным
+    }
+  }
+
   if (operandKinds.length !== meta.operands) {
     diagnostics.push({
       message: `${meta.mnemonic} expects ${meta.operands} operand(s), got ${operandKinds.length}`,
@@ -129,7 +145,7 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
         uri
       });
     }
-    if (stmt.directive === "EQU" && stmt.label) {
+    if ((stmt.directive === "EQU" || stmt.directive === "=") && stmt.label) {
       const key = makeScopedName(stmt.label, currentScope);
       symbols.set(key, {
         name: key,

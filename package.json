@@ -1,8 +1,8 @@
 {
   "name": "pdp11-asm-lsp-server",
-  "displayName": "PDP-11 Assembler LSP server and Tools",
+  "displayName": "PDP-11 Assembly LSP server and Tools",
   "description": "LSP server and language support for PDP-11 assembly",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "kalininskiy",
   "repository": {
     "type": "git",
@@ -14,17 +14,23 @@
   },
   "icon": "images/pdp11lsp.png",
   "keywords": [
-    "bk-0010",
-    "бк",
     "pdp11",
     "pdp-11",
-    "LSP",
+    "assembly",
+    "asm",
+    "lsp",
     "assembler",
-    "ассемблер",
+    "pdp11-asm",
+    "bk-asm",
+    "pdp11-lsp",
+    "bk-lsp",
     "pdpy11",
     "macro11",
     "macro-11",
+    "macro",
     "bkturbo8",
+    "elektronika",
+    "bk-0010",
     "retro"
   ],
   "categories": [
@@ -87,6 +93,10 @@
       {
         "command": "pdp11.assembleWithMacro11",
         "title": "PDP-11: Assemble with MACRO11"
+      },
+     {
+        "command": "pdp11.pickEmulator",
+        "title": "PDP-11: Select Emulator Executable"
       }
     ],
     "configuration": {
@@ -146,6 +156,17 @@
           "default": 5000,
           "minimum": 500,
           "description": "Timeout in milliseconds for external assembler invocation."
+        },
+        "pdp11.emulatorExecutable": {
+          "type": "string",
+          "default": "",
+          "description": "Path to BK Emulator (BK_x64.exe or GiD etc.)",
+          "markdownDescription": "Path to BK Emulator\n\n[Select File](command:pdp11.pickEmulator)"
+        },
+        "pdp11.autoRunInEmulator": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start .bin in the emulator after successful build"
         }
       }
     }

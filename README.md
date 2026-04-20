@@ -1,4 +1,4 @@
-# PDP-11 Assembler Language LSP-Server with DevTools intergration
+# PDP-11 Assembly Language LSP-Server with DevTools intergration
 
 LSP-сервер (Language Server Protocol) с поддержкой языка **ассемблера PDP-11** в VS Code с интеграцией инструментов разработки.
 
@@ -22,15 +22,16 @@ LSP-сервер (Language Server Protocol) с поддержкой языка *
 - Настраиваемые таймауты
 
 🔧 **Поддерживает ассемблеры**
-- **pdpy11** – ассемблер PDP-11 на Python - ссылка на проект
-- **BKTurbo8** – Кросс Ассемблер БК Турбо8 для компьютеров серии БК - ссылка на проект
-- **MACRO11** – Portable DEC MACRO11 assembler - ссылка на проект
+- **pdpy11** – ассемблер PDP-11 на Python - [ссылка на проект](https://github.com/pdpy11/pdpy11)
+- **BKTurbo8** – Кросс Ассемблер БК Турбо8 для компьютеров серии БК - [ссылка на проект](https://gid.pdp-11.ru/bkturbo8_doc.html)
+- **MACRO11** – Portable DEC MACRO11 assembler - [ссылка на проект](https://github.com/j-hoppe/MACRO11)
 
 🎯 **Возможности для разработки**
 - Выбор целевого аппаратного профиля (БК-0010, БК-0011, УКНЦ)
 - Поддержка форматов (.s, .asm, .mac)
 - Запуск сборки из редактора
 - Настройка аргументов сборки
+- Автозапуск в эмуляторе - после успешной сборки
 
 ## Установка
 
@@ -57,15 +58,15 @@ vsce package
 
 ## Быстрый старт
 
-### 1. Создайте ассемблерный файл (PDP-11)
+### 1. Создайте ассемблерный файл (PDP-11, здесь: пример для БК-0010)
 с расширением `.asm`, `.s`, или `.mac`:
 ```asm
-.global start
-start:
-    MOV #100, R3       ; Load immediate value
-    ADD #10, R3        ; Add to register
-    CLR R0             ; Clear register zero
-    JMP start+4        ; Jump forward
+        MOV     #HELLO,R1           ; Адрес начала текста
+        CLR     R2                  ; Конец текста - нулевой байт
+        EMT     20                  ; Вывод текста
+STOP:   HALT                        ; Останов
+HELLO:  .ASCIZ "Hello World!"
+        .END
 ```
 
 ### 2. Настройте выбранный ассемблер

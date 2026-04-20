@@ -1,0 +1,6 @@
+        MOV     #HELLO,R1           ; Адрес начала текста
+        CLR     R2                  ; Конец текста - нулевой байт
+        EMT     20                  ; Вывод текста
+STOP:   HALT                        ; Останов
+HELLO:  .ASCIZ "Hello World!"
+        .END

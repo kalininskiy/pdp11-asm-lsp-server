@@ -59,7 +59,12 @@ function getWordRange(document: TextDocument, line: number, character: number): 
 }
 
 function isLocalSymbol(name: string): boolean {
-  return name.startsWith(".") || /^[0-9]+\$$/.test(name) || name.startsWith("@@");
+  return (
+    name.startsWith(".") ||
+    /^[0-9]+\$?$/.test(name) ||
+    name.endsWith("$") ||
+    name.startsWith("@@")
+  );
 }
 
 function normalizeName(name: string): string {

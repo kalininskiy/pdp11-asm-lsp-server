@@ -9,8 +9,12 @@ function range(line: number, start: number, end: number) {
 const IDENTIFIER_RE = /^[A-Za-z_.$@?][A-Za-z0-9_.$@?]*$/;
 const LOCAL_NUMERIC_RE = /^[0-9]+\$$/;
 const NUMBER_RE = /^(?:[0-7]+|[0-9]+\.|0x[0-9a-fA-F]+)$/;
-const LABEL_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*|[0-9]+\$):/;
+
+// Поддержка всех распространённых локальных меток (1:   1$:   10$:   .1:   @@1:  и т.д.)
+const LABEL_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*|[0-9]+[$]?):/;
+
 const EQU_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*|[0-9]+\$)\s+EQU\b(.*)$/i;
+const DIRECT_ASSIGN_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)\s*=\s*(.+)$/i;
 
 function normalizeRegister(reg: string): string {
   const upper = reg.toUpperCase();
@@ -29,17 +33,25 @@ function isSymbolToken(text: string): boolean {
   return IDENTIFIER_RE.test(text) || LOCAL_NUMERIC_RE.test(text);
 }
 
-function replaceAliases(text: string, registerAliases: Map<string, string>): string {
+function replaceAliases(
+  text: string,
+  registerAliases: Map<string, string>,
+): string {
   let result = text;
   for (const [alias, reg] of registerAliases) {
     // Replace whole words, case insensitive
-    const regex = new RegExp(`\\b${alias}\\b`, 'gi');
+    const regex = new RegExp(`\\b${alias}\\b`, "gi");
     result = result.replace(regex, reg);
   }
   return result;
 }
 
-function parseOperand(text: string, line: number, start: number, registerAliases: Map<string, string>): OperandNode {
+function parseOperand(
+  text: string,
+  line: number,
+  start: number,
+  registerAliases: Map<string, string>,
+): OperandNode {
   const trimmed = text.trim();
   const normalized = replaceAliases(trimmed, registerAliases);
   const upper = normalized.toUpperCase();
@@ -49,6 +61,36 @@ function parseOperand(text: string, line: number, start: number, registerAliases
   let valueText: string | undefined;
   let register: OperandNode["register"];
   const regPattern = "(R[0-7]|SP|PC|%[0-7])";
+
+  // Поддержка выражений вида: symbol+offset, symbol-offset, @#symbol+offset
+  const offsetMatch = trimmed.match(
+    /^(@?#?)([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)([-+])(\d+)$/i,
+  );
+  if (offsetMatch) {
+    const prefix = offsetMatch[1];
+    const symbol = offsetMatch[2];
+    const sign = offsetMatch[3];
+    const offset = offsetMatch[4];
+
+    symbolName = symbol;
+    valueText = sign + offset;
+
+    if (prefix === "@#") {
+      kind = "absolute";
+    } else if (prefix === "#") {
+      kind = "immediate";
+    } else {
+      kind = "index";
+    }
+
+    return {
+      text: trimmed,
+      kind,
+      symbolName,
+      valueText,
+      range: { line, start, end },
+    };
+  }
 
   const extractValueReference = (value: string): void => {
     const valueTrimmed = value.trim();
@@ -84,7 +126,9 @@ function parseOperand(text: string, line: number, start: number, registerAliases
     kind = "registerDeferred";
     register = normalizeRegister(upper.slice(1, -1)) as OperandNode["register"];
   } else {
-    const indexDeferred = upper.match(new RegExp(`^@(.+)\\(${regPattern}\\)$`, "i"));
+    const indexDeferred = upper.match(
+      new RegExp(`^@(.+)\\(${regPattern}\\)$`, "i"),
+    );
     if (indexDeferred) {
       kind = "indexDeferred";
       register = normalizeRegister(indexDeferred[2]) as OperandNode["register"];
@@ -108,7 +152,14 @@ function parseOperand(text: string, line: number, start: number, registerAliases
     }
   }
 
-  return { text: trimmed, kind, register, symbolName, valueText, range: { line, start, end } };
+  return {
+    text: trimmed,
+    kind,
+    register,
+    symbolName,
+    valueText,
+    range: { line, start, end },
+  };
 }
 
 function splitOperands(raw: string): Array<{ text: string; start: number }> {
@@ -143,6 +194,7 @@ export function parseProgram(text: string): ProgramNode {
   const lines = text.split(/\r?\n/);
   const knownMacros = new Set<string>();
   const registerAliases = new Map<string, string>();
+  let inBlockComment = false; // Состояние для отслеживания многострочных комментариев /* ... */
   let openMacro:
     | {
         name: string;
@@ -152,9 +204,63 @@ export function parseProgram(text: string): ProgramNode {
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const raw = lines[lineIndex];
-    const commentStart = raw.indexOf(";");
-    const code = commentStart >= 0 ? raw.slice(0, commentStart) : raw;
-    const comment = commentStart >= 0 ? raw.slice(commentStart) : undefined;
+    let codePart = raw;
+    let comment: string | undefined = undefined;
+
+    // Обработка строки с учётом состояния inBlockComment
+    if (inBlockComment) {
+      const blockEnd = raw.indexOf('*/');
+      if (blockEnd !== -1) {
+        // Комментарий заканчивается на этой строке
+        comment = raw.slice(0, blockEnd + 2);
+        codePart = raw.slice(blockEnd + 2);
+        inBlockComment = false;
+      } else {
+        // Вся строка — часть многострочного комментария
+        comment = raw;
+        codePart = "";
+      }
+    } else {
+      // Обычная строка (не внутри блочного комментария)
+
+      // 1. Однострочный // 
+      let pos = raw.indexOf('//');
+      if (pos !== -1) {
+        codePart = raw.slice(0, pos);
+        comment = raw.slice(pos);
+      } else {
+        codePart = raw;
+      }
+
+      // 2. Начало блочного комментария /*
+      pos = codePart.indexOf('/*');
+      if (pos !== -1) {
+        const blockEnd = codePart.indexOf('*/', pos + 2);
+
+        if (blockEnd !== -1) {
+          // /* ... */ целиком на одной строке (inline)
+          if (comment) comment += " " + codePart.slice(pos);
+          else comment = codePart.slice(pos);
+          codePart = codePart.slice(0, pos);
+        } else {
+          // Начало многострочного комментария
+          if (comment) comment += " " + codePart.slice(pos);
+          else comment = codePart.slice(pos);
+          codePart = codePart.slice(0, pos);
+          inBlockComment = true;
+        }
+      }
+
+      // 3. Классический PDP-11 комментарий ;
+      pos = codePart.indexOf(';');
+      if (pos !== -1) {
+        if (comment) comment = codePart.slice(pos) + " " + (comment || "");
+        else comment = codePart.slice(pos);
+        codePart = codePart.slice(0, pos);
+      }
+    }
+
+    const code = codePart.trimEnd();
     const stmt: StatementNode = {
       line: lineIndex,
       operands: [],
@@ -169,6 +275,7 @@ export function parseProgram(text: string): ProgramNode {
       continue;
     }
 
+    // 1. Прямая метка (включая числовые 1: 2: 3:)
     const labelMatch = rest.match(LABEL_RE);
     if (labelMatch) {
       stmt.label = labelMatch[1];
@@ -179,25 +286,53 @@ export function parseProgram(text: string): ProgramNode {
       }
     }
 
+    // 2. Присваивание через = (например, symbol = 1234 или symbol = otherSymbol)
+    const assignMatch = rest.match(DIRECT_ASSIGN_RE);
+    if (assignMatch) {
+      stmt.label = assignMatch[1];
+      stmt.directive = "="; // специальный directive
+      const valueTail = assignMatch[2].trim();
+      if (valueTail.length > 0) {
+        stmt.operands.push(
+          parseOperand(
+            valueTail,
+            lineIndex,
+            code.indexOf(valueTail),
+            registerAliases,
+          ),
+        );
+      }
+      statements.push(stmt);
+      continue;
+    }
+
+    // 3. EQU
     const equMatch = rest.match(EQU_RE);
     if (equMatch) {
       stmt.label = equMatch[1];
       stmt.directive = "EQU";
       const valueTail = equMatch[2].trim();
       if (valueTail.length > 0) {
-        stmt.operands.push(parseOperand(valueTail, lineIndex, code.indexOf(valueTail), registerAliases));
+        stmt.operands.push(
+          parseOperand(
+            valueTail,
+            lineIndex,
+            code.indexOf(valueTail),
+            registerAliases,
+          ),
+        );
       } else {
         diagnostics.push({
           message: "EQU requires value",
           severity: DiagnosticSeverity.Error,
-          range: range(lineIndex, 0, rest.length)
+          range: range(lineIndex, 0, rest.length),
         });
       }
       statements.push(stmt);
       continue;
     }
 
-    // Check for register alias assignment: %0 = AX
+    // 4. Check for register alias assignment: %0 = AX
     const aliasMatch = rest.match(/^(%[0-7])\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/i);
     if (aliasMatch) {
       const reg = aliasMatch[1];
@@ -217,7 +352,7 @@ export function parseProgram(text: string): ProgramNode {
       diagnostics.push({
         message: "EQU requires label before it",
         severity: DiagnosticSeverity.Error,
-        range: range(lineIndex, 0, head.length)
+        range: range(lineIndex, 0, head.length),
       });
     }
 
@@ -227,7 +362,7 @@ export function parseProgram(text: string): ProgramNode {
         diagnostics.push({
           message: `Unknown directive '${head}'`,
           severity: DiagnosticSeverity.Warning,
-          range: range(lineIndex, 0, head.length)
+          range: range(lineIndex, 0, head.length),
         });
       }
 
@@ -237,7 +372,7 @@ export function parseProgram(text: string): ProgramNode {
           diagnostics.push({
             message: ".MACRO requires a macro name",
             severity: DiagnosticSeverity.Error,
-            range: range(lineIndex, 0, raw.length)
+            range: range(lineIndex, 0, raw.length),
           });
         } else {
           const macroName = macroParts[0];
@@ -247,7 +382,7 @@ export function parseProgram(text: string): ProgramNode {
             name: macroName,
             parameters: macroParts.slice(1).map((p) => p.replace(/,$/, "")),
             startLine: lineIndex,
-            endLine: lineIndex
+            endLine: lineIndex,
           };
         }
       } else if (headUpper === ".ENDM") {
@@ -255,14 +390,14 @@ export function parseProgram(text: string): ProgramNode {
           diagnostics.push({
             message: ".ENDM without matching .MACRO",
             severity: DiagnosticSeverity.Error,
-            range: range(lineIndex, 0, head.length)
+            range: range(lineIndex, 0, head.length),
           });
         } else {
           stmt.macroDefinition = {
             name: openMacro.name,
             parameters: [],
             startLine: openMacro.startLine,
-            endLine: lineIndex
+            endLine: lineIndex,
           };
           openMacro = undefined;
         }
@@ -270,7 +405,7 @@ export function parseProgram(text: string): ProgramNode {
     } else if (knownMacros.has(headUpper)) {
       stmt.macroInvocation = {
         name: head,
-        arguments: []
+        arguments: [],
       };
     } else {
       stmt.opcode = headUpper;
@@ -278,7 +413,12 @@ export function parseProgram(text: string): ProgramNode {
 
     if (tail.length > 0) {
       for (const item of splitOperands(tail)) {
-        const operand = parseOperand(item.text, lineIndex, Math.max(0, tailStart) + item.start, registerAliases);
+        const operand = parseOperand(
+          item.text,
+          lineIndex,
+          Math.max(0, tailStart) + item.start,
+          registerAliases,
+        );
         stmt.operands.push(operand);
         if (stmt.macroInvocation) {
           stmt.macroInvocation.arguments.push(operand);
@@ -293,7 +433,11 @@ export function parseProgram(text: string): ProgramNode {
     diagnostics.push({
       message: `.MACRO '${openMacro.name}' is not terminated by .ENDM`,
       severity: DiagnosticSeverity.Error,
-      range: range(openMacro.startLine, 0, lines[openMacro.startLine]?.length ?? 0)
+      range: range(
+        openMacro.startLine,
+        0,
+        lines[openMacro.startLine]?.length ?? 0,
+      ),
     });
   }
 
