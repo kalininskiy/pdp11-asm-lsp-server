@@ -49,7 +49,7 @@ LSP-сервер (Language Server Protocol) с поддержкой языка *
 ```bash
 git clone https://github.com/kalininskiy/pdp11-asm-lsp-server.git
 cd pdp11-asm-lsp-server
-npm install
+npm run install:all
 npm run compile
 # Package as VSIX:
 npm install -g @vscode/vsce

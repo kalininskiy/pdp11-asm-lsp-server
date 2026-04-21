@@ -170,6 +170,7 @@
     }
   },
   "scripts": {
+    "install:all": "npm install && npm --prefix client install && npm --prefix server install",
     "compile": "npm --prefix server run compile && npm --prefix client run compile",
     "watch": "npm --prefix server run watch & npm --prefix client run watch",
     "lint": "npm --prefix server run lint && npm --prefix client run lint"
