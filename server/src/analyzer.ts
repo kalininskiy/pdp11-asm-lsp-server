@@ -145,6 +145,7 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
 
   let currentScope = "__FILE__";
   for (const stmt of program.statements) {
+    if (stmt.context === "script") continue;
     if (stmt.label && !isLocalSymbol(stmt.label)) {
       currentScope = normalizeSymbolKey(stmt.label);
     }
@@ -187,6 +188,7 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
   let inMacroBody = false;
   currentScope = "__FILE__";
   for (const stmt of program.statements) {
+    if (stmt.context === "script") continue;
     if (stmt.directive === ".MACRO") {
       inMacroBody = true;
     } else if (stmt.directive === ".ENDM") {
@@ -243,6 +245,9 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
         
         // Не показываем ошибку для имён файлов в .include
         if (op.symbolName && stmt.directive?.toUpperCase() === ".INCLUDE") { continue; }
+        
+        // Не показываем ошибку для имён в .script
+        if (op.symbolName && stmt.directive?.toUpperCase() === ".SCRIPT") { continue; }
 
         const symbolKey = makeScopedName(op.symbolName, currentScope);
         const globalKey = normalizeSymbolKey(op.symbolName);

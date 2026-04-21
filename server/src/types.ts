@@ -54,6 +54,7 @@ export interface StatementNode {
   comment?: string;
   raw: string;
   range: SourceRange;
+  context?: "normal" | "script";
 }
 
 export interface ProgramNode {

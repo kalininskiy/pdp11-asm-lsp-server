@@ -201,6 +201,8 @@ export function parseProgram(text: string): ProgramNode {
   const registerAliases = new Map<string, string>();
   let inBlockComment = false; // Состояние для отслеживания многострочных комментариев /* ... */
   let openMacro: { name: string; startLine: number } | undefined;
+  let inScript = false;
+  let openScript: { name: string; startLine: number } | undefined;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const raw = lines[lineIndex];
@@ -268,6 +270,8 @@ export function parseProgram(text: string): ProgramNode {
       raw,
       range: { line: lineIndex, start: 0, end: raw.length }
     };
+
+  stmt.context = inScript ? "script" : "normal";
 
     let rest = code.trim();
     if (rest.length === 0) {
@@ -428,6 +432,50 @@ export function parseProgram(text: string): ProgramNode {
         continue;
       }
 
+      if (headUpper === ".SCRIPT") {
+        const scriptName = tail.split(/\s+/)[0];
+
+        if (!scriptName) {
+          diagnostics.push({
+            message: ".SCRIPT requires a name",
+            severity: DiagnosticSeverity.Error,
+            range: range(lineIndex, 0, raw.length),
+          });
+        } else {
+          inScript = true;
+          openScript = { name: scriptName, startLine: lineIndex };
+
+          stmt.directive = ".SCRIPT";
+          stmt.operands = [{
+            text: scriptName,
+            kind: "symbol",
+            symbolName: scriptName,
+            range: stmt.range,
+          }];
+        }
+
+        statements.push(stmt);
+        continue;
+      }
+
+      if (headUpper === ".ENDS") {
+        stmt.directive = ".ENDS";
+
+        if (!inScript) {
+          diagnostics.push({
+            message: ".ENDS without matching .SCRIPT",
+            severity: DiagnosticSeverity.Error,
+            range: range(lineIndex, 0, head.length),
+          });
+        } else {
+          inScript = false;
+          openScript = undefined;
+        }
+
+        statements.push(stmt);
+        continue;
+      }  
+
       if (headUpper === ".MACRO") {
         const macroParts = tail.split(/\s+/).filter((p) => p.length > 0);
         if (macroParts.length === 0) {
@@ -499,6 +547,18 @@ export function parseProgram(text: string): ProgramNode {
         openMacro.startLine,
         0,
         lines[openMacro.startLine]?.length ?? 0,
+      ),
+    });
+  }
+
+  if (openScript) {
+    diagnostics.push({
+      message: `.SCRIPT '${openScript.name}' is not terminated by .ENDS`,
+      severity: DiagnosticSeverity.Error,
+      range: range(
+        openScript.startLine,
+        0,
+        lines[openScript.startLine]?.length ?? 0,
       ),
     });
   }
