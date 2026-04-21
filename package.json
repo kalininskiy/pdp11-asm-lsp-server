@@ -2,7 +2,7 @@
   "name": "pdp11-asm-lsp-server",
   "displayName": "PDP-11 Assembly LSP server and Tools",
   "description": "LSP server and language support for PDP-11 assembly",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "kalininskiy",
   "repository": {
     "type": "git",
@@ -37,7 +37,10 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:pdp11-asm"
+    "onLanguage:pdp11-asm",
+    "onCommand:pdp11.assembleWithPdpy11",
+    "onCommand:pdp11.assembleWithBkturbo8",
+    "onCommand:pdp11.assembleWithMacro11"
   ],
   "main": "./client/out/extension.js",
   "contributes": {
@@ -162,24 +165,15 @@
           "default": "",
           "description": "Path to BK Emulator (BK_x64.exe or GiD etc.)",
           "markdownDescription": "Path to BK Emulator\n\n[Select File](command:pdp11.pickEmulator)"
-        },
-        "pdp11.autoRunInEmulator": {
-          "type": "boolean",
-          "default": false,
-          "description": "Automatically start .bin in the emulator after successful build"
         }
       }
     }
   },
   "scripts": {
-    "compile": "npm run -w server compile && npm run -w client compile",
-    "watch": "npm run -w server watch & npm run -w client watch",
-    "lint": "npm run -w server lint && npm run -w client lint"
+    "compile": "npm --prefix server run compile && npm --prefix client run compile",
+    "watch": "npm --prefix server run watch & npm --prefix client run watch",
+    "lint": "npm --prefix server run lint && npm --prefix client run lint"
   },
-  "workspaces": [
-    "client",
-    "server"
-  ],
   "devDependencies": {
     "@types/node": "^20.12.12",
     "@types/vscode": "^1.85.0",

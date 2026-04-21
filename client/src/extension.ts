@@ -2,7 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { execFile } from "node:child_process";
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from "vscode-languageclient/node";
-import * as cp from 'child_process';
+import * as cp from "node:child_process";
 import * as fs from 'fs';
 
 let client: LanguageClient | undefined;
@@ -42,11 +42,11 @@ async function runAssembler(assembler: string, pathKey: string): Promise<void> {
   
   let args: string[] = [];
   if (assembler === "pdpy11") {
-    args = ["--implicit-bin", "-o", outputFile, ...extraArgs, filePath];
+    args = ["--implicit-bin", ...extraArgs, filePath];
   } else if (assembler === "bkturbo8") {
-    args = ["CO", "-o", outputFile, ...extraArgs, filePath];
+    args = ["CO", ...extraArgs, filePath];
   } else if (assembler === "macro11") {
-    args = ["-o", outputFile, ...extraArgs, filePath];
+    args = [...extraArgs, filePath];
   } else {
     args = [...extraArgs, filePath];
   }
