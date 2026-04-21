@@ -26,56 +26,56 @@
   "Push Register": {
     "prefix": "pdp-pushr",
     "body": [
-      "MOV R${1:0}, -(SP)",
+      "MOV\tR${1:0}, -(SP)",
       "",
-      "MOV (SP)+, R${1:0}"
+      "MOV\t(SP)+, R${1:0}"
     ],
     "description": "Push one register to stack"
   },
   "Push Register lowercase": {
     "prefix": "pdp-pushr-lowercase",
     "body": [
-      "mov R${1:0}, -(SP)",
+      "mov\tR${1:0}, -(SP)",
       "",
-      "mov (SP)+, R${1:0}"
+      "mov\t(SP)+, R${1:0}"
     ],
     "description": "Push one register to stack"
   },
   "Push All Registers": {
     "prefix": "pdp-pushall",
     "body": [
-      "MOV R0, -(SP)",
-      "MOV R1, -(SP)",
-      "MOV R2, -(SP)",
-      "MOV R3, -(SP)",
-      "MOV R4, -(SP)",
-      "MOV R5, -(SP)",
+      "MOV\tR0, -(SP)",
+      "MOV\tR1, -(SP)",
+      "MOV\tR2, -(SP)",
+      "MOV\tR3, -(SP)",
+      "MOV\tR4, -(SP)",
+      "MOV\tR5, -(SP)",
       "${1}",
-      "MOV (SP)+, R5",
-      "MOV (SP)+, R4",
-      "MOV (SP)+, R3",
-      "MOV (SP)+, R2",
-      "MOV (SP)+, R1",
-      "MOV (SP)+, R0"
+      "MOV\t(SP)+, R5",
+      "MOV\t(SP)+, R4",
+      "MOV\t(SP)+, R3",
+      "MOV\t(SP)+, R2",
+      "MOV\t(SP)+, R1",
+      "MOV\t(SP)+, R0"
     ],
     "description": "Push common working registers"
   },
   "Push All Registers lowercase": {
     "prefix": "pdp-pushall-lowercase",
     "body": [
-      "mov R0, -(SP)",
-      "mov R1, -(SP)",
-      "mov R2, -(SP)",
-      "mov R3, -(SP)",
-      "mov R4, -(SP)",
-      "mov R5, -(SP)",
+      "mov\tR0, -(SP)",
+      "mov\tR1, -(SP)",
+      "mov\tR2, -(SP)",
+      "mov\tR3, -(SP)",
+      "mov\tR4, -(SP)",
+      "mov\tR5, -(SP)",
       "${1}",
-      "mov (SP)+, R5",
-      "mov (SP)+, R4",
-      "mov (SP)+, R3",
-      "mov (SP)+, R2",
-      "mov (SP)+, R1",
-      "mov (SP)+, R0"
+      "mov\t(SP)+, R5",
+      "mov\t(SP)+, R4",
+      "mov\t(SP)+, R3",
+      "mov\t(SP)+, R2",
+      "mov\t(SP)+, R1",
+      "mov\t(SP)+, R0"
     ],
     "description": "Push common working registers"
   },
@@ -84,11 +84,11 @@
     "body": [
       "; subroutine ${1:SUBR_NAME}",
       "${1:SUBR_NAME}:",
-      "\tMOV R5, -(SP)",
-      "\tMOV SP, R5",
+      "\tMOV\tR5, -(SP)",
+      "\tMOV\tSP, R5",
       "\t; body",
-      "\tMOV (SP)+, R5",
-      "\tRTS PC",
+      "\tMOV\t(SP)+, R5",
+      "\tRTS\tPC",
       "; end subroutine ${1:SUBR_NAME}"
     ],
     "description": "Subroutine with frame setup"
@@ -98,11 +98,11 @@
     "body": [
       "; subroutine ${1:SUBR_NAME}",
       "${1:SUBR_NAME}:",
-      "\tmov R5, -(SP)",
-      "\tmov SP, R5",
+      "\tmov\tR5, -(SP)",
+      "\tmov\tSP, R5",
       "\t; body",
-      "\tmov (SP)+, R5",
-      "\trts PC",
+      "\tmov\t(SP)+, R5",
+      "\trts\tPC",
       "; end subroutine ${1:SUBR_NAME}"
     ],
     "description": "Subroutine with frame setup"
@@ -110,38 +110,38 @@
   "EMT20 Template": {
     "prefix": "pdp-emt20",
     "body": [
-      "MOV ${1:#String}, R1",
-      "CLR R2",
-      "EMT 20"
+      "MOV\t${1:#String}, R1",
+      "CLR\tR2",
+      "EMT\t20"
     ],
     "description": "EMT 20 call with string argument"
   },
   "EMT20 Template lowercase": {
     "prefix": "pdp-emt20-lowercase",
     "body": [
-      "mov ${1:#String}, R1",
-      "clr R2",
-      "emt 20"
+      "mov\t${1:#String}, R1",
+      "clr\tR2",
+      "emt\t20"
     ],
     "description": "EMT 20 call with string argument"
   },
   "SOB LOOP Template": {
     "prefix": "pdp-loop-sobr",
     "body": [
-      "\tMOV ${1:#100}, R${2:0}",
+      "\tMOV\t${1:#100}, R${2:0}",
       "${3:LOOP_LABEL}:",
       "\t; loop body",
-      "\tSOB R${2:0}, ${3:LOOP_LABEL}"
+      "\tSOB\tR${2:0}, ${3:LOOP_LABEL}"
     ],
     "description": "SOB loop template"
   },
   "SOB LOOP Template lowercase": {
     "prefix": "pdp-loop-sobr-lowercase",
     "body": [
-      "\tmov ${1:#100}, R${2:0}",
+      "\tmov\t${1:#100}, R${2:0}",
       "${3:LOOP_LABEL}:",
       "\t; loop body",
-      "\tsob R${2:0}, ${3:LOOP_LABEL}"
+      "\tsob\tR${2:0}, ${3:LOOP_LABEL}"
     ],
     "description": "SOB loop template"
   }
