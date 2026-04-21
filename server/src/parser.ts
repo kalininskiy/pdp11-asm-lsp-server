@@ -200,12 +200,7 @@ export function parseProgram(text: string): ProgramNode {
   const knownMacros = new Set<string>();
   const registerAliases = new Map<string, string>();
   let inBlockComment = false; // Состояние для отслеживания многострочных комментариев /* ... */
-  let openMacro:
-    | {
-        name: string;
-        startLine: number;
-      }
-    | undefined;
+  let openMacro: { name: string; startLine: number } | undefined;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const raw = lines[lineIndex];
@@ -322,24 +317,29 @@ export function parseProgram(text: string): ProgramNode {
       }
     }
 
-    // 2. Присваивание через = (например, symbol = 1234 или symbol = otherSymbol)
-    const assignMatch = rest.match(DIRECT_ASSIGN_RE);
-    if (assignMatch) {
-      stmt.label = assignMatch[1];
-      stmt.directive = "="; // специальный directive
-      const valueTail = assignMatch[2].trim();
-      if (valueTail.length > 0) {
-        stmt.operands.push(
-          parseOperand(
-            valueTail,
-            lineIndex,
-            code.indexOf(valueTail),
-            registerAliases,
-          ),
-        );
-      }
-      statements.push(stmt);
-      continue;
+    // 2. Присваивание через = (например, symbol = 1234 или symbol = otherSymbol) + множественные на одной строке
+    const assignRegex = /([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)\s*=\s*([^=\s][^=]*?)(?=\s+[A-Za-z_.$@?][A-Za-z0-9_.$@?]*\s*=|\s*$)/gi;
+    let assignMatch: RegExpExecArray | null;
+    let hasAnyAssignment = false;
+
+    while ((assignMatch = assignRegex.exec(rest)) !== null) {
+      const symbolName = assignMatch[1];
+      const valueText = assignMatch[2].trim();
+
+      const assignStmt: StatementNode = {
+        ...stmt,
+        label: symbolName,
+        directive: "=",
+        operands: valueText ? [parseOperand(valueText, lineIndex, 0, registerAliases)] : [],
+        raw: rest
+      };
+
+      statements.push(assignStmt);
+      hasAnyAssignment = true;
+    }
+
+    if (hasAnyAssignment) {
+      continue; // все присваивания уже обработаны
     }
 
     // 3. EQU
@@ -400,6 +400,32 @@ export function parseProgram(text: string): ProgramNode {
           severity: DiagnosticSeverity.Warning,
           range: range(lineIndex, 0, head.length),
         });
+      }
+
+      if (headUpper === ".INCLUDE") {
+        stmt.directive = ".INCLUDE";
+
+        // Поддержка вариантов:
+        // .include file.asm
+        // .include "file.asm"
+        // .include include\subdir\file.asm
+        const includeMatch = tail.match(/^(?:"([^"]+)"|(\S+))/i);
+        if (includeMatch) {
+          const fileName = (includeMatch[1] || includeMatch[2]).trim();
+          stmt.operands.push({
+            text: fileName,
+            kind: "symbol",
+            symbolName: fileName,
+            valueText: fileName,
+            range: {
+              line: lineIndex,
+              start: code.indexOf(tail),
+              end: code.indexOf(tail) + tail.length
+            }
+          });
+        }
+        statements.push(stmt);
+        continue;
       }
 
       if (headUpper === ".MACRO") {

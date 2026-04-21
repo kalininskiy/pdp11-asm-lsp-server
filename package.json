@@ -2,7 +2,7 @@
   "name": "pdp11-asm-lsp-server",
   "displayName": "PDP-11 Assembly LSP server and Tools",
   "description": "LSP server and language support for PDP-11 assembly",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "kalininskiy",
   "repository": {
     "type": "git",
@@ -102,6 +102,11 @@
         "title": "PDP-11: Select Emulator Executable"
       }
     ],
+    "configurationDefaults": {
+      "[pdp11-asm]": {
+        "editor.colorDecorators": false
+      }
+    },
     "configuration": {
       "title": "PDP-11 Assembler",
       "properties": {

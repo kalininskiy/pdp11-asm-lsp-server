@@ -20,6 +20,7 @@ import { analyzeProgram } from "./analyzer";
 import { PDP11_INSTRUCTIONS, REGISTERS } from "./instructions";
 import { parseProgram } from "./parser";
 import { AssemblerKind, collectExternalAssemblerDiagnostics, ToolchainSettings } from "./toolchain";
+import { SymbolEntry } from "./types";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -29,6 +30,8 @@ const diagnosticsByUri = new Map<string, Diagnostic[]>();
 
 const symbolIndex = new Map<string, { key: string; displayName: string; uri: string; line: number; start: number; end: number; scope?: string }>();
 const analysisScopes = new Map<string, string[]>();
+const documentSymbols = new Map<string, Map<string, SymbolEntry>>(); // Хранилище символов для каждого открытого документа
+const documentScopes = new Map<string, string[]>();                  // Хранилище scopes для каждой строки каждого документа
 
 let targetProfile = "BK-0010";
 let toolchainSettings: ToolchainSettings = {
@@ -78,33 +81,33 @@ function normalizeUriToPath(uri: string): string | undefined {
   return decodeURIComponent(uri.replace("file:///", "")).replace(/\//g, path.sep);
 }
 
-// Функция для нахождения .include файла, если курсор находится внутри .INCLUDE директивы
+// Функция для нахождения .include файла (поддержка с кавычками и без)
 export function getIncludeFileLocation(document: TextDocument, line: number, character: number): Location | null {
   const lineText = document.getText({
     start: { line, character: 0 },
     end: { line: line + 1, character: 0 }
   });
 
-  // Проверим, является ли строка директивой .include
-  const includeMatch = lineText.match(/^\s*\.include\s+"([^"]+)"/i);
+  // Поддержка .include file.asm и .include "file.asm"
+  const includeMatch = lineText.match(/^\s*\.include\s+(?:"([^"]+)"|(\S+))/i);
   if (!includeMatch) {
     return null;
   }
 
-  const fileName = includeMatch[1];
-  const docPath = normalizeUriToPath(document.uri);
-  if (!docPath) {
-    return null;
-  }
+  const fileName = includeMatch[1] || includeMatch[2];
+  if (!fileName) return null;
 
-  // Позиция имени файла в строке
-  const fileNameStart = lineText.indexOf(`"${fileName}"`);
-  const fileNameEnd = fileNameStart + fileName.length + 2; // +2 для кавычек
+  // Проверяем, находится ли курсор внутри имени файла
+  const matchStart = includeMatch.index || 0;
+  const fileNameStart = lineText.indexOf(fileName, matchStart);
+  const fileNameEnd = fileNameStart + fileName.length;
 
-  // Проверка, находится ли курсор внутри имени файла
   if (character < fileNameStart || character > fileNameEnd) {
     return null;
   }
+
+  const docPath = normalizeUriToPath(document.uri);
+  if (!docPath) return null;
 
   const baseDir = path.dirname(docPath);
   const fullPath = path.resolve(baseDir, fileName);
@@ -113,7 +116,6 @@ export function getIncludeFileLocation(document: TextDocument, line: number, cha
     return null;
   }
 
-  // Найденный location для файла
   const fileUri = `file:///${fullPath.replace(/\\/g, "/")}`;
   return Location.create(fileUri, {
     start: { line: 0, character: 0 },
@@ -124,17 +126,26 @@ export function getIncludeFileLocation(document: TextDocument, line: number, cha
 function loadIncludes(document: TextDocument): Array<{ uri: string; text: string }> {
   const includes: Array<{ uri: string; text: string }> = [];
   const docPath = normalizeUriToPath(document.uri);
-  if (!docPath) {
-    return includes;
-  }
+  if (!docPath) return includes;
+
   const baseDir = path.dirname(docPath);
-  const includeMatches = document.getText().matchAll(/^\s*\.include\s+"([^"]+)"/gim);
-  for (const m of includeMatches) {
-    const rel = m[1];
-    const fullPath = path.resolve(baseDir, rel);
+  const text = document.getText();
+
+  // Поддержка .include file.asm и .include "file.asm"
+  const includeRegex = /^\s*\.include\s+(?:"([^"]+)"|(\S+))/gim;
+
+  let match: RegExpExecArray | null;
+  while ((match = includeRegex.exec(text)) !== null) {
+    const fileName = match[1] || match[2];
+    if (!fileName) continue;
+
+    const fullPath = path.resolve(baseDir, fileName);
     if (fs.existsSync(fullPath)) {
-      const text = fs.readFileSync(fullPath, "utf8");
-      includes.push({ uri: `file:///${fullPath.replace(/\\/g, "/")}`, text });
+      const fileText = fs.readFileSync(fullPath, "utf8");
+      includes.push({
+        uri: `file:///${fullPath.replace(/\\/g, "/")}`,
+        text: fileText
+      });
     }
   }
   return includes;
@@ -162,46 +173,94 @@ function mergeDiagnostics(uri: string, ...diagnosticSets: Diagnostic[][]): Diagn
   return merged;
 }
 
-function rebuildSymbolIndex(sourceTexts: Array<{ uri: string; text: string }>): void {
+function rebuildSymbolIndex(mainUri: string, mainText: string, includes: Array<{ uri: string; text: string }>): void {
+  // Очищаем только данные для текущего основного файла
+  documentSymbols.delete(mainUri);
+  documentScopes.delete(mainUri);
+
+  // Парсим основной файл
+  const mainProgram = parseProgram(mainText);
+  const mainAnalysis = analyzeProgram(mainProgram, mainUri, targetProfile);
+  const mainScopes = computeLineScopes(mainText);
+
+  documentScopes.set(mainUri, mainScopes);
+  documentSymbols.set(mainUri, mainAnalysis.symbols);
+
+  // Добавляем include-файлы
+  for (const inc of includes) {
+    if (documentSymbols.has(inc.uri)) continue; // уже обработан
+
+    const incProgram = parseProgram(inc.text);
+    const incAnalysis = analyzeProgram(incProgram, inc.uri, targetProfile);
+
+    documentSymbols.set(inc.uri, incAnalysis.symbols);
+  }
+
+  // Перестраиваем глобальный symbolIndex (для быстрого поиска)
   symbolIndex.clear();
-  analysisScopes.clear();
 
-  for (const source of sourceTexts) {
-    const program = parseProgram(source.text);
-    const analysis = analyzeProgram(program, source.uri, targetProfile);
-    const scopes = computeLineScopes(source.text);
-    analysisScopes.set(source.uri, scopes);
+  // Сначала символы из основного файла (с scoped ключами)
+  for (const [key, entry] of mainAnalysis.symbols) {
+    const lines = mainText.split(/\r?\n/);
+    const lineText = lines[entry.line] ?? "";
+    const start = Math.max(0, lineText.indexOf(entry.displayName));
 
-    for (const [key, entry] of analysis.symbols) {
-      const lines = source.text.split(/\r?\n/);
-      const lineText = lines[entry.line] ?? "";
-      const start = Math.max(0, lineText.indexOf(entry.displayName));
-      symbolIndex.set(key, {
-        key,
-        displayName: entry.displayName,
-        uri: entry.uri,
-        line: entry.line,
-        start,
-        end: start + entry.displayName.length,
-        scope: entry.scope
-      });
+    symbolIndex.set(key, {
+      key,
+      displayName: entry.displayName,
+      uri: entry.uri,
+      line: entry.line,
+      start,
+      end: start + entry.displayName.length,
+      scope: entry.scope
+    });
+  }
+
+  // Затем глобальные символы из всех include-файлов
+  for (const [incUri, symbolsMap] of documentSymbols) {
+    if (incUri === mainUri) continue;
+
+    for (const [_, entry] of symbolsMap) {
+      const globalKey = normalizeSymbolKey(entry.displayName);
+      if (!symbolIndex.has(globalKey)) {
+        const start = 0;
+
+        symbolIndex.set(globalKey, {
+          key: globalKey,
+          displayName: entry.displayName,
+          uri: entry.uri,
+          line: entry.line,
+          start,
+          end: start + entry.displayName.length,
+          scope: undefined
+        });
+      }
     }
   }
 }
 
+function normalizeSymbolKey(name: string): string {
+  return name.toUpperCase();
+}
+
 function resolveSymbolKey(uri: string, line: number, symbol: string): string | undefined {
   const upper = normalizeName(symbol);
-  const scope = analysisScopes.get(uri)?.[line] ?? "__FILE__";
+
+  // 1. Локальный символ в текущем файле (высший приоритет)
   if (isLocalSymbol(symbol)) {
-    const scoped = `${scope}::${upper}`;
-    if (symbolIndex.has(scoped)) {
-      return scoped;
+    const scope = analysisScopes.get(uri)?.[line] ?? "__FILE__";
+    const scopedKey = `${scope}::${upper}`;
+    if (symbolIndex.has(scopedKey)) {
+      return scopedKey;
     }
-    return undefined;
   }
+
+  // 2. Глобальный символ (из основного файла или любого include)
   if (symbolIndex.has(upper)) {
     return upper;
   }
+
+  // 3. Поиск по displayName
   for (const [key, entry] of symbolIndex) {
     if (entry.displayName.toUpperCase() === upper) {
       return key;
@@ -211,13 +270,18 @@ function resolveSymbolKey(uri: string, line: number, symbol: string): string | u
 }
 
 async function validateDocument(document: TextDocument): Promise<void> {
-  const program = parseProgram(document.getText());
-  const analysis = analyzeProgram(program, document.uri, targetProfile);
+  const mainText = document.getText();
   const includes = loadIncludes(document);
+
+  const program = parseProgram(mainText);
+  const analysis = analyzeProgram(program, document.uri, targetProfile);
   const externalDiagnostics = await collectExternalAssemblerDiagnostics(document.uri, toolchainSettings);
   const merged = mergeDiagnostics(document.uri, analysis.diagnostics, externalDiagnostics);
+
   connection.sendDiagnostics({ uri: document.uri, diagnostics: merged });
-  rebuildSymbolIndex([{ uri: document.uri, text: document.getText() }, ...includes]);
+
+  // Перестраиваем индекс только для текущего документа + его includes
+  rebuildSymbolIndex(document.uri, mainText, includes);
 }
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {

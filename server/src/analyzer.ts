@@ -241,11 +241,12 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
           continue;
         }
         
+        // Не показываем ошибку для имён файлов в .include
+        if (op.symbolName && stmt.directive?.toUpperCase() === ".INCLUDE") { continue; }
+
         const symbolKey = makeScopedName(op.symbolName, currentScope);
         const globalKey = normalizeSymbolKey(op.symbolName);
         if (!symbols.has(symbolKey) && !symbols.has(globalKey)) {
-          // Если в файле есть .INCLUDE директивы, не помечаем неразрешённые символы как ошибку
-          // они могут быть определены в подключаемых модулях
           const severity = hasIncludeDirectives ? DiagnosticSeverity.Information : DiagnosticSeverity.Error;
           diagnostics.push({
             message: hasIncludeDirectives

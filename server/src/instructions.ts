@@ -775,6 +775,13 @@ export const PDP11_INSTRUCTIONS: Record<string, InstructionMeta> = {
     affects: [],
     cycles: "10",
   },
+  RETURN: {
+    mnemonic: "RETURN",
+    description: "Return from subroutine (RTS PC)",
+    operands: 0,
+    affects: [],
+    cycles: "10",
+  },
 };
 
 export const DIRECTIVES = new Set([
