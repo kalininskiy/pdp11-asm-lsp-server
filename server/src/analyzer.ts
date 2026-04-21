@@ -129,6 +129,20 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
   const target = TARGET_PROFILES[targetProfileName] ?? TARGET_PROFILES["BK-0010"];
   const macroSignatures = new Map<string, number>();
 
+  // Проверяем наличие .INCLUDE директив
+  const hasIncludeDirectives = program.statements.some(
+    stmt => stmt.directive?.toUpperCase() === ".INCLUDE"
+  );
+
+  // Добавляем встроенные символы (текущий адрес)
+  symbols.set(".", {
+    name: ".",
+    displayName: ".",
+    kind: "label",
+    line: 0,
+    uri
+  });
+
   let currentScope = "__FILE__";
   for (const stmt of program.statements) {
     if (stmt.label && !isLocalSymbol(stmt.label)) {
@@ -222,12 +236,22 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
 
     for (const op of stmt.operands) {
       if (op.symbolName) {
+        // Пропускаем проверку для текущего адреса
+        if (op.symbolName === ".") {
+          continue;
+        }
+        
         const symbolKey = makeScopedName(op.symbolName, currentScope);
         const globalKey = normalizeSymbolKey(op.symbolName);
         if (!symbols.has(symbolKey) && !symbols.has(globalKey)) {
+          // Если в файле есть .INCLUDE директивы, не помечаем неразрешённые символы как ошибку
+          // они могут быть определены в подключаемых модулях
+          const severity = hasIncludeDirectives ? DiagnosticSeverity.Information : DiagnosticSeverity.Error;
           diagnostics.push({
-            message: `Unresolved symbol '${op.symbolName}'`,
-            severity: DiagnosticSeverity.Error,
+            message: hasIncludeDirectives
+              ? `Symbol '${op.symbolName}' may be defined in included module`
+              : `Unresolved symbol '${op.symbolName}'`,
+            severity,
             range: range(op.range.line, op.range.start, op.range.end)
           });
         }

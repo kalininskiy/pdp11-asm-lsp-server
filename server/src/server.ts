@@ -78,6 +78,49 @@ function normalizeUriToPath(uri: string): string | undefined {
   return decodeURIComponent(uri.replace("file:///", "")).replace(/\//g, path.sep);
 }
 
+// Функция для нахождения .include файла, если курсор находится внутри .INCLUDE директивы
+export function getIncludeFileLocation(document: TextDocument, line: number, character: number): Location | null {
+  const lineText = document.getText({
+    start: { line, character: 0 },
+    end: { line: line + 1, character: 0 }
+  });
+
+  // Проверим, является ли строка директивой .include
+  const includeMatch = lineText.match(/^\s*\.include\s+"([^"]+)"/i);
+  if (!includeMatch) {
+    return null;
+  }
+
+  const fileName = includeMatch[1];
+  const docPath = normalizeUriToPath(document.uri);
+  if (!docPath) {
+    return null;
+  }
+
+  // Позиция имени файла в строке
+  const fileNameStart = lineText.indexOf(`"${fileName}"`);
+  const fileNameEnd = fileNameStart + fileName.length + 2; // +2 для кавычек
+
+  // Проверка, находится ли курсор внутри имени файла
+  if (character < fileNameStart || character > fileNameEnd) {
+    return null;
+  }
+
+  const baseDir = path.dirname(docPath);
+  const fullPath = path.resolve(baseDir, fileName);
+
+  if (!fs.existsSync(fullPath)) {
+    return null;
+  }
+
+  // Найденный location для файла
+  const fileUri = `file:///${fullPath.replace(/\\/g, "/")}`;
+  return Location.create(fileUri, {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 0 }
+  });
+}
+
 function loadIncludes(document: TextDocument): Array<{ uri: string; text: string }> {
   const includes: Array<{ uri: string; text: string }> = [];
   const docPath = normalizeUriToPath(document.uri);
@@ -295,6 +338,13 @@ connection.onDefinition((params): Definition | null => {
   if (!document) {
     return null;
   }
+
+  // Проверка, находится ли курсор внутри .include директивы
+  const includeLocation = getIncludeFileLocation(document, params.position.line, params.position.character);
+  if (includeLocation) {
+    return includeLocation;
+  }
+
   const wordRange = getWordRange(document, params.position.line, params.position.character);
   if (!wordRange) {
     return null;

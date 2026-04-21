@@ -75,7 +75,12 @@ function parseOperand(
     symbolName = symbol;
     valueText = sign + offset;
 
-    if (prefix === "@#") {
+    // Специальная обработка для выражений с точкой (текущий адрес)
+    // .-4, .+2 и т.д. должны быть числами для ветвлений, а не индексным режимом
+    if (symbol === ".") {
+      kind = "number";
+      valueText = trimmed; // сохраняем полное выражение как число
+    } else if (prefix === "@#") {
       kind = "absolute";
     } else if (prefix === "#") {
       kind = "immediate";
@@ -275,14 +280,45 @@ export function parseProgram(text: string): ProgramNode {
       continue;
     }
 
-    // 1. Прямая метка (включая числовые 1: 2: 3:)
-    const labelMatch = rest.match(LABEL_RE);
-    if (labelMatch) {
-      stmt.label = labelMatch[1];
+    // 1. Поддержка одной или нескольких меток на одной строке
+    const labels: string[] = [];
+    let labelMatch;
+    while ((labelMatch = rest.match(LABEL_RE))) {
+      labels.push(labelMatch[1]);
       rest = rest.slice(labelMatch[0].length).trim();
       if (rest.length === 0) {
+        // Все оставшиеся токены - это метки, сохраняем основную метку
+        stmt.label = labels[0];
+        // Для остальных меток создаём отдельные записи
+        for (let i = 1; i < labels.length; i++) {
+          const labelStmt: StatementNode = {
+            line: lineIndex,
+            label: labels[i],
+            operands: [],
+            comment: undefined,
+            raw,
+            range: { line: lineIndex, start: 0, end: raw.length }
+          };
+          statements.push(labelStmt);
+        }
         statements.push(stmt);
         continue;
+      }
+    }
+    
+    // Если были найдены метки, сохраняем первую и создаём записи для остальных
+    if (labels.length > 0) {
+      stmt.label = labels[0];
+      for (let i = 1; i < labels.length; i++) {
+        const labelStmt: StatementNode = {
+          line: lineIndex,
+          label: labels[i],
+          operands: [],
+          comment: undefined,
+          raw,
+          range: { line: lineIndex, start: 0, end: raw.length }
+        };
+        statements.push(labelStmt);
       }
     }
 
