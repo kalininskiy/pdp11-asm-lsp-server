@@ -2,7 +2,7 @@
 
 LSP-сервер (Language Server Protocol) с поддержкой языка **ассемблера PDP-11** в VS Code с интеграцией инструментов разработки.
 
-![Version](https://img.shields.io/badge/version-0.1.8-blue)
+![Version](https://img.shields.io/badge/version-0.1.9-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.85.0-blue)
 

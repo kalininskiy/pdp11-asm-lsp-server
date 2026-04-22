@@ -62,18 +62,18 @@ function parseOperand(
   let register: OperandNode["register"];
   const regPattern = "(R[0-7]|SP|PC|%[0-7])";
 
-  // Поддержка выражений вида: symbol+offset, symbol-offset, @#symbol+offset
-  const offsetMatch = trimmed.match(
-    /^(@?#?)([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)([-+])(\d+)$/i,
+  // Поддержка любых выражений
+  const complexExprMatch = trimmed.match(
+    /^(@?#?)([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)([-+][0-9]+(?:[-+][0-9]+)*)$/i
   );
-  if (offsetMatch) {
-    const prefix = offsetMatch[1];
-    const symbol = offsetMatch[2];
-    const sign = offsetMatch[3];
-    const offset = offsetMatch[4];
+
+  if (complexExprMatch) {
+    const prefix = complexExprMatch[1];
+    const symbol = complexExprMatch[2];
+    const offsets = complexExprMatch[3];
 
     symbolName = symbol;
-    valueText = sign + offset;
+    valueText = offsets;
 
     // Специальная обработка для выражений с точкой (текущий адрес)
     // .-4, .+2 и т.д. должны быть числами для ветвлений, а не индексным режимом
