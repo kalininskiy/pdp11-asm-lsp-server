@@ -292,7 +292,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: { resolveProvider: false },
       hoverProvider: true,
-      definitionProvider: true
+      definitionProvider: true,
+      referencesProvider: true,
     }
   };
 });
@@ -430,6 +431,68 @@ connection.onDefinition((params): Definition | null => {
     start: { line: def.line, character: def.start },
     end: { line: def.line, character: def.end }
   });
+});
+
+// Реализация Find all References (Shift+F12) ====================
+connection.onReferences((params): Location[] => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  const wordRange = getWordRange(document, params.position.line, params.position.character);
+  if (!wordRange) {
+    return [];
+  }
+
+  const lineText = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: { line: params.position.line + 1, character: 0 }
+  });
+
+  const symbol = lineText.slice(wordRange.start, wordRange.end);
+  const symbolKey = resolveSymbolKey(params.textDocument.uri, params.position.line, symbol);
+
+  if (!symbolKey) {
+    return [];
+  }
+
+  const locations: Location[] = [];
+
+  // Ищем во всех открытых документах + include-файлах
+  for (const [uri, text] of documents.all().map(doc => [doc.uri, doc.getText()])) {
+    const program = parseProgram(text);
+    // const analysis = analyzeProgram(program, uri, targetProfile);
+
+    for (const stmt of program.statements) {
+      for (const op of stmt.operands) {
+        if (op.symbolName) {
+          const candidateKey = resolveSymbolKey(uri, stmt.line, op.symbolName);
+          if (candidateKey === symbolKey) {
+            const range = {
+              start: { line: stmt.line, character: op.range.start },
+              end: { line: stmt.line, character: op.range.end }
+            };
+            locations.push(Location.create(uri, range));
+          }
+        }
+      }
+
+      // Также проверяем метки
+      if (stmt.label) {
+        const candidateKey = resolveSymbolKey(uri, stmt.line, stmt.label);
+        if (candidateKey === symbolKey) {
+          const range = {
+            start: { line: stmt.line, character: 0 },
+            end: { line: stmt.line, character: stmt.label.length }
+          };
+          locations.push(Location.create(uri, range));
+        }
+      }
+    }
+  }
+
+  return locations;
 });
 
 documents.listen(connection);
