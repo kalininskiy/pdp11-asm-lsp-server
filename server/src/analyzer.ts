@@ -2,6 +2,9 @@ import { Diagnostic, DiagnosticSeverity } from "vscode-languageserver";
 import { DIRECTIVES, InstructionMeta, PDP11_INSTRUCTIONS } from "./instructions";
 import { AnalysisResult, OperandNode, ProgramNode, SymbolEntry, TargetProfile } from "./types";
 
+/**
+ * Профили целевых платформ с их памятью и IO картой
+ */
 const TARGET_PROFILES: Record<string, TargetProfile> = {
   "BK-0010": {
     name: "BK-0010",
@@ -30,10 +33,24 @@ const TARGET_PROFILES: Record<string, TargetProfile> = {
   }
 };
 
+/**
+ * Создает диапазон для диагностики
+ * 
+ * @param line Номер строки
+ * @param start Позиция начала
+ * @param end Позиция окончания
+ * @returns Объект диапазона
+ */
 function range(line: number, start: number, end: number) {
   return { start: { line, character: start }, end: { line, character: end } };
 }
 
+/**
+ * Парсит число в формате PDP-11
+ * 
+ * @param text Текст для парсинга
+ * @returns Число или undefined
+ */
 function parsePdp11Number(text: string): number | undefined {
   const clean = text.trim();
   if (/^[0-7]+$/.test(clean)) {
@@ -48,10 +65,22 @@ function parsePdp11Number(text: string): number | undefined {
   return undefined;
 }
 
+/**
+ * Нормализует ключ символа
+ * 
+ * @param name Имя символа
+ * @returns Нормализованное имя символа
+ */
 function normalizeSymbolKey(name: string): string {
   return name.toUpperCase();
 }
 
+/**
+ * Проверяет, является ли символ локальным
+ * 
+ * @param name Имя символа
+ * @returns true, если символ локальный, false в противном случае
+ */
 function isLocalSymbol(name: string): boolean {
   return (
     name.startsWith(".") ||
@@ -61,6 +90,13 @@ function isLocalSymbol(name: string): boolean {
   );
 }
 
+/**
+ * Создает отсканированное имя символа
+ * 
+ * @param name Имя символа
+ * @param scope Область видимости
+ * @returns Отсканированное имя символа
+ */
 function makeScopedName(name: string, scope: string): string {
   if (isLocalSymbol(name)) {
     return `${scope}::${normalizeSymbolKey(name)}`;
@@ -68,6 +104,12 @@ function makeScopedName(name: string, scope: string): string {
   return normalizeSymbolKey(name);
 }
 
+/**
+ * Извлекает кандидата на адрес
+ * 
+ * @param op Операнд
+ * @returns Кандидат на адрес или undefined
+ */
 function extractAddressCandidate(op: OperandNode): string | undefined {
   if (op.kind === "immediate" || op.kind === "absolute" || op.kind === "number") {
     return op.valueText ?? op.text.replace(/^@?#/, "");
@@ -75,6 +117,14 @@ function extractAddressCandidate(op: OperandNode): string | undefined {
   return undefined;
 }
 
+/**
+ * Валидирует инструкцию
+ * 
+ * @param meta Метаданные инструкции
+ * @param line Номер строки
+ * @param operandKinds Массив типов операндов
+ * @returns Массив диагностики
+ */
 function validateInstruction(meta: InstructionMeta, line: number, operandKinds: string[]): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
@@ -123,6 +173,14 @@ function validateInstruction(meta: InstructionMeta, line: number, operandKinds: 
   return diagnostics;
 }
 
+/**
+ * Анализирует программу
+ * 
+ * @param program Программа
+ * @param uri URI файла
+ * @param targetProfileName Имя целевого профиля
+ * @returns Результат анализа
+ */
 export function analyzeProgram(program: ProgramNode, uri: string, targetProfileName: string): AnalysisResult {
   const symbols = new Map<string, SymbolEntry>();
   const diagnostics: Diagnostic[] = [...program.diagnostics];

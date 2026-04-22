@@ -10,7 +10,10 @@ import {
   InitializeResult,
   Location,
   ProposedFeatures,
-  TextDocumentSyncKind
+  DocumentSymbol,
+  SymbolKind,
+  TextDocumentSyncKind,
+  Range
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { TextDocuments } from "vscode-languageserver/node";
@@ -20,7 +23,7 @@ import { analyzeProgram } from "./analyzer";
 import { PDP11_INSTRUCTIONS, REGISTERS } from "./instructions";
 import { parseProgram } from "./parser";
 import { AssemblerKind, collectExternalAssemblerDiagnostics, ToolchainSettings } from "./toolchain";
-import { SymbolEntry } from "./types";
+import { SymbolEntry, SourceRange } from "./types";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -44,6 +47,14 @@ let toolchainSettings: ToolchainSettings = {
   timeoutMs: 5000
 };
 
+/**
+ * Получает диапазон слова в текстовом документе
+ * 
+ * @param document Текстовый документ
+ * @param line Номер строки
+ * @param character Номер символа
+ * @returns Диапазон слова или null, если слово не найдено
+ */
 function getWordRange(document: TextDocument, line: number, character: number): { start: number; end: number } | null {
   const lineText = document.getText({
     start: { line, character: 0 },
@@ -81,7 +92,14 @@ function normalizeUriToPath(uri: string): string | undefined {
   return decodeURIComponent(uri.replace("file:///", "")).replace(/\//g, path.sep);
 }
 
-// Функция для нахождения .include файла (поддержка с кавычками и без)
+/**
+ * Функция для нахождения .include файла (поддержка с кавычками и без)
+ * 
+ * @param document Текстовый документ, в котором нужно найти .include
+ * @param line Номер строки, на которой находится .include
+ * @param character Номер символа, на котором находится курсор (для проверки, что он внутри имени файла)
+ * @returns Объект Location, указывающий на местоположение файла .include, или null, если файл не найден
+ */
 export function getIncludeFileLocation(document: TextDocument, line: number, character: number): Location | null {
   const lineText = document.getText({
     start: { line, character: 0 },
@@ -123,6 +141,12 @@ export function getIncludeFileLocation(document: TextDocument, line: number, cha
   });
 }
 
+/**
+ * Загружает текст всех .include файлов, упомянутых в данном документе, и возвращает их в виде массива объектов с URI и текстом
+ * 
+ * @param document Текстовый документ, для которого нужно загрузить .include файлы
+ * @returns Массив объектов с URI и текстом включенных файлов
+ */
 function loadIncludes(document: TextDocument): Array<{ uri: string; text: string }> {
   const includes: Array<{ uri: string; text: string }> = [];
   const docPath = normalizeUriToPath(document.uri);
@@ -151,6 +175,12 @@ function loadIncludes(document: TextDocument): Array<{ uri: string; text: string
   return includes;
 }
 
+/**
+ * Вычисляет scopes для каждой строки программы на основе меток и локальных символов
+ * 
+ * @param programText Текст программы, для которой нужно вычислить scopes
+ * @returns Массив scopes для каждой строки программы
+ */
 function computeLineScopes(programText: string): string[] {
   const parsed = parseProgram(programText);
   const scopes: string[] = [];
@@ -164,6 +194,13 @@ function computeLineScopes(programText: string): string[] {
   return scopes;
 }
 
+/**
+ * Merges diagnostics from multiple sources (internal analysis and external assembler) for a given document URI
+ * 
+ * @param uri The URI of the document for which diagnostics are being merged
+ * @param diagnosticSets Multiple arrays of diagnostics to be merged together
+ * @returns 
+ */
 function mergeDiagnostics(uri: string, ...diagnosticSets: Diagnostic[][]): Diagnostic[] {
   const merged = diagnosticSets.flat().map((d) => ({
     ...d,
@@ -173,6 +210,13 @@ function mergeDiagnostics(uri: string, ...diagnosticSets: Diagnostic[][]): Diagn
   return merged;
 }
 
+/**
+ * Rebuilds the symbol index for a given document and its included files
+ * 
+ * @param mainUri The URI of the main document being processed
+ * @param mainText The text content of the main document
+ * @param includes An array of included files with their URIs and text content
+ */
 function rebuildSymbolIndex(mainUri: string, mainText: string, includes: Array<{ uri: string; text: string }>): void {
   // Очищаем только данные для текущего основного файла
   documentSymbols.delete(mainUri);
@@ -243,6 +287,14 @@ function normalizeSymbolKey(name: string): string {
   return name.toUpperCase();
 }
 
+/**
+ * Resolves a symbol key based on its URI, line, and name
+ * 
+ * @param uri The URI of the document where the symbol is referenced
+ * @param line The line number where the symbol is referenced
+ * @param symbol The symbol name as it appears in the code (could be local or global)
+ * @returns 
+ */
 function resolveSymbolKey(uri: string, line: number, symbol: string): string | undefined {
   const upper = normalizeName(symbol);
 
@@ -294,6 +346,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       hoverProvider: true,
       definitionProvider: true,
       referencesProvider: true,
+      documentSymbolProvider: true,
     }
   };
 });
@@ -338,6 +391,9 @@ documents.onDidChangeContent((e) => {
   void validateDocument(e.document);
 });
 
+/**
+ * Реализация Hover для отображения информации об инструкции при наведении курсора на мнемонику
+ */
 connection.onHover((params): Hover | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
@@ -365,6 +421,9 @@ connection.onHover((params): Hover | null => {
   };
 });
 
+/**
+ * Реализация автодополнения (Ctrl+Space)
+ */
 connection.onCompletion((params): CompletionItem[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
@@ -398,6 +457,9 @@ connection.onCompletion((params): CompletionItem[] => {
   return items;
 });
 
+/**
+ * Реализация Go to Definition (F12)
+ */
 connection.onDefinition((params): Definition | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
@@ -433,7 +495,9 @@ connection.onDefinition((params): Definition | null => {
   });
 });
 
-// Реализация Find all References (Shift+F12) ====================
+/**
+ * Реализация Find all References (Shift+F12)
+ */
 connection.onReferences((params): Location[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
@@ -494,6 +558,122 @@ connection.onReferences((params): Location[] => {
 
   return locations;
 });
+
+/**
+ * Реализация Document Symbols для отображения структуры файла в панели Outline
+ */
+connection.onDocumentSymbol((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const program = parseProgram(doc.getText());
+
+  const symbols: DocumentSymbol[] = [];
+  const seen = new Set<string>();
+
+  let currentContainer: DocumentSymbol | null = null;
+
+  for (const stmt of program.statements) {
+    // --- НАЧАЛО .SCRIPT ---
+    if (stmt.directive === ".SCRIPT" && stmt.operands.length > 0) {
+      const name = stmt.operands[0].text;
+
+      const scriptSymbol: DocumentSymbol = {
+        name,
+        kind: SymbolKind.Namespace,
+        range: toLspRange(stmt.range),
+        selectionRange: toLspRange(stmt.range),
+        children: [],
+      };
+
+      symbols.push(scriptSymbol);
+      currentContainer = scriptSymbol;
+      continue;
+    }
+
+    // --- НАЧАЛО .MACRO ---
+    if (stmt.directive === ".MACRO" && stmt.operands.length > 0) {
+      const name = stmt.operands[0].text;
+
+      const macroSymbol: DocumentSymbol = {
+        name,
+        kind: SymbolKind.Function,
+        range: toLspRange(stmt.range),
+        selectionRange: toLspRange(stmt.range),
+        children: [],
+      };
+
+      symbols.push(macroSymbol);
+      currentContainer = macroSymbol;
+      continue;
+    }
+
+    // --- КОНЕЦ БЛОКОВ ---
+    if (
+      stmt.directive === ".ENDS" ||
+      stmt.directive === ".ENDM"
+    ) {
+      currentContainer = null;
+      continue;
+    }
+
+    // --- .EQU ---
+    if (
+      stmt.directive === ".EQU" ||
+      stmt.directive === "EQU"
+    ) {
+      if (stmt.label) {
+        const constSymbol: DocumentSymbol = {
+          name: `${stmt.label} = ${stmt.operands[0]?.text ?? ""}`,
+          kind: SymbolKind.Constant,
+          range: toLspRange(stmt.range),
+          selectionRange: toLspRange(stmt.range),
+        };
+
+        if (currentContainer) {
+          currentContainer.children!.push(constSymbol);
+        } else {
+          symbols.push(constSymbol);
+        }
+      }
+      continue;
+    }
+    
+    // --- LABEL ---
+    if (stmt.label && !isLocalLabel(stmt.label)) {
+      const key = `${stmt.label}@${stmt.range.line}`;
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const labelSymbol: DocumentSymbol = {
+        name: stmt.label,
+        kind: SymbolKind.Function,
+        range: toLspRange(stmt.range),
+        selectionRange: toLspRange(stmt.range),
+      };
+
+      if (currentContainer) {
+        currentContainer.children!.push(labelSymbol);
+      } else {
+        symbols.push(labelSymbol);
+      }
+    }
+  }
+
+  return symbols;
+});
+
+function toLspRange(r: SourceRange): Range {
+  return {
+    start: { line: r.line, character: r.start },
+    end: { line: r.line, character: r.end },
+  };
+}
+
+function isLocalLabel(name: string): boolean {
+  return /^\d+\$?$/.test(name);
+}
 
 documents.listen(connection);
 connection.listen();

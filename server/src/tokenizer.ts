@@ -1,3 +1,6 @@
+/**
+ * Типы токенов, которые могут быть распознаны в строке кода
+ */
 export type TokenType =
   | "identifier"
   | "number"
@@ -11,6 +14,9 @@ export type TokenType =
   | "string"
   | "unknown";
 
+/**
+ * Интерфейс для представления токена
+ */
 export interface Token {
   type: TokenType;
   value: string;
@@ -18,6 +24,12 @@ export interface Token {
   end: number;
 }
 
+/**
+ * Токенизирует строку кода
+ * 
+ * @param line Строка кода для токенизации
+ * @returns Массив токенов
+ */
 export function tokenizeLine(line: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;

@@ -8,6 +8,13 @@ import * as fs from 'fs';
 let client: LanguageClient | undefined;
 const CONFIG_SECTION = "pdp11";
 
+/**
+ * Позволяет пользователю выбрать исполняемый файл и сохраняет его путь в настройках
+ * 
+ * @param settingKey Ключ настройки
+ * @param label Метка для диалога выбора файла
+ * @returns 
+ */
 async function pickExecutableAndStore(settingKey: string, label: string): Promise<void> {
   const picked = await vscode.window.showOpenDialog({
     canSelectFolders: false,
@@ -24,6 +31,13 @@ async function pickExecutableAndStore(settingKey: string, label: string): Promis
   void vscode.window.showInformationMessage(`${label}: ${uri.fsPath}`);
 }
 
+/**
+ * Запускает указанный ассемблер с заданными аргументами
+ * 
+ * @param assembler Название ассемблера
+ * @param pathKey Ключ настройки пути к исполняемому файлу
+ * @returns 
+ */
 async function runAssembler(assembler: string, pathKey: string): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== "pdp11-asm") {
@@ -101,6 +115,11 @@ async function runAssembler(assembler: string, pathKey: string): Promise<void> {
   );
 }
 
+/**
+ * Активирует расширение
+ * 
+ * @param context Контекст расширения
+ */
 export function activate(context: vscode.ExtensionContext): void {
   const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
   const serverOptions: ServerOptions = {
@@ -144,12 +163,21 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
+/**
+ * Деактивирует расширение
+ */
 export async function deactivate(): Promise<void> {
   if (client) {
     await client.stop();
   }
 }
 
+/**
+ * Запускает указанный файл в эмуляторе
+ * 
+ * @param filePath Путь к файлу
+ * @returns
+ */
 async function runInEmulator(filePath: string): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {

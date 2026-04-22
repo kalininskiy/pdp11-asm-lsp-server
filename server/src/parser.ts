@@ -12,10 +12,14 @@ const NUMBER_RE = /^(?:[0-7]+|[0-9]+\.|0x[0-9a-fA-F]+)$/;
 
 // Поддержка всех распространённых локальных меток (1:   1$:   10$:   .1:   @@1:  и т.д.)
 const LABEL_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*|[0-9]+[$]?):/;
-
 const EQU_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*|[0-9]+\$)\s+EQU\b(.*)$/i;
-const DIRECT_ASSIGN_RE = /^([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)\s*=\s*(.+)$/i;
 
+/**
+ * Нормализует имя регистра
+ * 
+ * @param reg Имя регистра
+ * @returns Нормализованное имя регистра
+ */
 function normalizeRegister(reg: string): string {
   const upper = reg.toUpperCase();
   if (upper.startsWith("%")) {
@@ -29,10 +33,23 @@ function normalizeRegister(reg: string): string {
   return upper;
 }
 
+/**
+ * Проверяет, является ли текст символом
+ * 
+ * @param text Текст для проверки
+ * @returns 
+ */
 function isSymbolToken(text: string): boolean {
   return IDENTIFIER_RE.test(text) || LOCAL_NUMERIC_RE.test(text);
 }
 
+/**
+ * Заменяет псевдонимы регистров на их реальные имена
+ * 
+ * @param text Текст, в котором нужно заменить псевдонимы
+ * @param registerAliases Карта псевдонимов регистров
+ * @returns Текст с замененными псевдонимами
+ */
 function replaceAliases(
   text: string,
   registerAliases: Map<string, string>,
@@ -46,6 +63,15 @@ function replaceAliases(
   return result;
 }
 
+/**
+ * Парсит операнд и возвращает объект OperandNode
+ * 
+ * @param text Текст операнда
+ * @param line Номер строки
+ * @param start Позиция начала операнда
+ * @param registerAliases Карта псевдонимов регистров
+ * @returns Объект OperandNode
+ */
 function parseOperand(
   text: string,
   line: number,
@@ -167,6 +193,12 @@ function parseOperand(
   };
 }
 
+/**
+ * Разбивает строку с операндами на массив объектов, содержащих текст и позицию
+ * 
+ * @param raw Строка с операндами
+ * @returns Массив объектов, содержащих текст и позицию
+ */
 function splitOperands(raw: string): Array<{ text: string; start: number }> {
   const result: Array<{ text: string; start: number }> = [];
   let current = "";
@@ -193,6 +225,12 @@ function splitOperands(raw: string): Array<{ text: string; start: number }> {
   return result;
 }
 
+/**
+ * Парсит программу на ассемблере PDP-11 из текста и возвращает структуру ProgramNode, содержащую массив операторов и диагностические сообщения
+ * 
+ * @param text Текст программы на ассемблере PDP-11
+ * @returns Структура ProgramNode
+ */
 export function parseProgram(text: string): ProgramNode {
   const statements: StatementNode[] = [];
   const diagnostics: Diagnostic[] = [];

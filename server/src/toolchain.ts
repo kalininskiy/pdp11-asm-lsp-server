@@ -2,9 +2,14 @@ import * as path from "node:path";
 import { execFile } from "node:child_process";
 import { Diagnostic, DiagnosticSeverity } from "vscode-languageserver";
 
-
+/**
+ * Тип для представления поддерживаемых ассемблеров, которые могут быть выбраны пользователем в настройках расширения
+ */
 export type AssemblerKind = "none" | "pdpy11" | "bkturbo8" | "macro11";
 
+/**
+ * Интерфейс для представления настроек инструментов сборки, которые могут быть настроены пользователем в настройках расширения
+ */
 export interface ToolchainSettings {
   enabled: boolean;
   selectedAssembler: AssemblerKind;
@@ -15,13 +20,29 @@ export interface ToolchainSettings {
   timeoutMs: number;
 }
 
+/**
+ * Интерфейс для представления адаптера ассемблера
+ */
 interface AssemblerAdapter {
   kind: Exclude<AssemblerKind, "none">;
   parseOutput(raw: string): Diagnostic[];
 }
 
+/**
+ * Значение таймаута по умолчанию в миллисекундах
+ */
 const DEFAULT_TIMEOUT_MS = 5000;
 
+/**
+ * Создает диагностическое сообщение, связанное с конкретной строкой в коде
+ * 
+ * @param message Текст сообщения диагностики
+ * @param line Номер строки, к которой относится диагностика (1-индексация)
+ * @param severity Уровень серьезности диагностики (ошибка, предупреждение и т.д.)
+ * @param source Источник диагностики (например, имя ассемблера)
+ * @param character Номер символа в строке, к которому относится диагностика (1-индексация, по умолчанию 1)
+ * @returns Объект Diagnostic, который может быть возвращен в LSP-сервере для отображения пользователю
+ */
 function toLineDiagnostic(
   message: string,
   line: number,
@@ -42,6 +63,13 @@ function toLineDiagnostic(
   };
 }
 
+/**
+ * Парсит вывод ассемблера и преобразует его в массив диагностических сообщений
+ * 
+ * @param raw Вывод ассемблера
+ * @param source Источник диагностики
+ * @returns Массив диагностических сообщений
+ */
 function parseGenericAssemblerOutput(raw: string, source: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const lines = raw.split(/\r?\n/);
@@ -83,6 +111,9 @@ function parseGenericAssemblerOutput(raw: string, source: string): Diagnostic[] 
   return diagnostics;
 }
 
+/**
+ * Адаптер для ассемблера pdpy11, который парсит его вывод и преобразует его в диагностические сообщения для LSP-сервера
+ */
 const pdpy11Adapter: AssemblerAdapter = {
   kind: "pdpy11",
   parseOutput(raw) {
@@ -90,6 +121,9 @@ const pdpy11Adapter: AssemblerAdapter = {
   }
 };
 
+/**
+ * Адаптер для ассемблера BKTurbo8, который парсит его вывод и преобразует его в диагностические сообщения для LSP-сервера
+ */
 const bkturbo8Adapter: AssemblerAdapter = {
   kind: "bkturbo8",
   parseOutput(raw) {
@@ -97,6 +131,9 @@ const bkturbo8Adapter: AssemblerAdapter = {
   }
 };
 
+/**
+ * Адаптер для ассемблера MACRO-11, который парсит его вывод и преобразует его в диагностические сообщения для LSP-сервера
+ */
 const macro11Adapter: AssemblerAdapter = {
   kind: "macro11",
   parseOutput(raw) {
@@ -104,12 +141,21 @@ const macro11Adapter: AssemblerAdapter = {
   }
 };
 
+/**
+ * Таблица адаптеров для ассемблеров
+ */
 const ADAPTERS: Record<Exclude<AssemblerKind, "none">, AssemblerAdapter> = {
   pdpy11: pdpy11Adapter,
   bkturbo8: bkturbo8Adapter,
   macro11: macro11Adapter
 };
 
+/**
+ * Преобразует URI в путь к файлу в файловой системе
+ * 
+ * @param uri URI файла
+ * @returns Путь к файлу в файловой системе или undefined, если URI недействителен
+ */
 function uriToFsPath(uri: string): string | undefined {
   if (!uri.startsWith("file:///")) {
     return undefined;
@@ -118,6 +164,14 @@ function uriToFsPath(uri: string): string | undefined {
   return decoded.replace(/\//g, path.sep);
 }
 
+/**
+ * Выполняет ассемблер с заданными аргументами
+ * 
+ * @param executable Путь к исполняемому файлу ассемблера
+ * @param args Аргументы командной строки
+ * @param timeoutMs Таймаут выполнения
+ * @returns Объект с выводом ассемблера и флагом, указывающим, завершился ли процесс с ошибкой
+ */
 function executeAssembler(executable: string, args: string[], timeoutMs: number): Promise<{ output: string; failed: boolean }> {
   const command = `${executable} ${args.join(' ')}`;
   console.error(`[DEBUG] Executing assembler: ${command}`);
@@ -141,6 +195,13 @@ function executeAssembler(executable: string, args: string[], timeoutMs: number)
   });
 }
 
+/**
+ * Собирает диагностические сообщения от внешнего ассемблера
+ * 
+ * @param uri URI файла
+ * @param settings Настройки инструментария
+ * @returns Массив диагностических сообщений
+ */
 export async function collectExternalAssemblerDiagnostics(uri: string, settings: ToolchainSettings): Promise<Diagnostic[]> {
   // Диагностика запуска ассемблера по умолчанию отключена для производительности.
   // Она полезна для проверки синтаксиса, но может быть ресурсоёмкой.
@@ -168,15 +229,15 @@ export async function collectExternalAssemblerDiagnostics(uri: string, settings:
   switch (settings.selectedAssembler) {
     case "pdpy11":
       executable = settings.pdpy11Path || "pdpy11";
-      args = ["--implicit-bin", "-o", outputFile, ...settings.extraArgs, filePath];
+      args = ["--implicit-bin", ...settings.extraArgs, filePath];
       break;
     case "bkturbo8":
       executable = settings.bkturbo8Path || "bkturbo8";
-      args = ["CO", "-o", outputFile, ...settings.extraArgs, filePath];
+      args = ["CO", ...settings.extraArgs, filePath];
       break;
     case "macro11":
       executable = settings.macro11Path || "macro11";
-      args = ["-o", outputFile, ...settings.extraArgs, filePath];
+      args = [...settings.extraArgs, filePath];
       break;
     default:
       return [];

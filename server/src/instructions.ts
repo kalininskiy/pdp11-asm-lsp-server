@@ -1,31 +1,45 @@
 import { OperandKind } from "./types";
 
+/**
+ * Интерфейс для представления метаданных инструкции
+ */
 export interface InstructionMeta {
-  mnemonic: string;
-  description: string;
-  operands: 0 | 1 | 2;
-  allowedDst?: OperandKind[];
-  allowedSrc?: OperandKind[];
-  affects: string[];
-  cycles: string;
+  mnemonic: string;                // Мнемоника инструкции, например "MOV", "ADD" и т.д.
+  description: string;             // Краткое описание инструкции для отображения в подсказках и документации
+  operands: 0 | 1 | 2;             // Количество операндов, которые принимает инструкция (0, 1 или 2)
+  allowedDst?: OperandKind[];      // Разрешенные виды операндов для назначения (для инструкций с 1 или 2 операндами)
+  allowedSrc?: OperandKind[];      // Разрешенные виды операндов для источника (для инструкций с 2 операндами)
+  affects: string[];               // Список флагов процессора, которые могут быть изменены этой инструкцией (например, ["N", "Z", "V", "C"])
+  cycles: string;                  // Количество тактов, которое занимает выполнение инструкции
 }
-const MEMORY_MODES: OperandKind[] = [
-  "registerDeferred",
-  "autoincrement",
-  "autoincrementDeferred",
-  "autodecrement",
-  "autodecrementDeferred",
-  "index",
-  "indexDeferred",
-  "absolute",
-  "symbol",
-  "number",
-];
-const ANY_DST: OperandKind[] = ["register", ...MEMORY_MODES];
-const ANY_SRC: OperandKind[] = [...ANY_DST, "immediate"];
-const BRANCH_DST: OperandKind[] = ["symbol", "number"];
-const JMP_DST: OperandKind[] = ["register", ...MEMORY_MODES];
 
+/**
+ * Массив режимов адресации
+ */
+const MEMORY_MODES: OperandKind[] = [
+  "registerDeferred",       // (Rn)    Register deferred
+  "autoincrement",          // (Rn)+   Autoincrement
+  "autoincrementDeferred",  // @(Rn)+  Autoincrement deferred
+  "autodecrement",          // -(Rn)   Autodecrement
+  "autodecrementDeferred",  // @-(Rn)  Autodecrement deferred
+  "index",                  // X(Rn)   Index
+  "indexDeferred",          // @X(Rn)  Index deferred
+  "absolute",               // Absolute
+  "symbol",                 // Symbolic
+  "number",                 // Absolute number
+];
+
+/**
+ * Предопределенные наборы разрешенных операндов для различных типов инструкций
+ */
+const ANY_DST: OperandKind[] = ["register", ...MEMORY_MODES]; // Регистр может быть только источником, а не назначением в некоторых инструкциях, поэтому он не включается в ANY_SRC
+const ANY_SRC: OperandKind[] = [...ANY_DST, "immediate"];     // Источник может быть непосредственным значением, но назначение не может
+const BRANCH_DST: OperandKind[] = ["symbol", "number"];       // Назначение для команд перехода должно быть меткой или числом
+const JMP_DST: OperandKind[] = ["register", ...MEMORY_MODES]; // Назначение для команды JMP должно быть регистром или режимом адресации
+
+/**
+ * Таблица инструкций PDP-11 с их метаданными для валидации и предоставления информации в LSP-сервере
+ */
 export const PDP11_INSTRUCTIONS: Record<string, InstructionMeta> = {
   MOV: {
     mnemonic: "MOV",
@@ -784,6 +798,9 @@ export const PDP11_INSTRUCTIONS: Record<string, InstructionMeta> = {
   },
 };
 
+/**
+ * Набор директив ассемблера для валидации и предоставления информации о них в LSP-сервере
+ */
 export const DIRECTIVES = new Set([
   ".LA",
   ".LINK",
@@ -811,6 +828,10 @@ export const DIRECTIVES = new Set([
   "EQU",
   "=",
 ]);
+
+/**
+ * Набор регистров для валидации и предоставления информации о них в LSP-сервере
+ */
 export const REGISTERS = new Set([
   "R0",
   "R1",
