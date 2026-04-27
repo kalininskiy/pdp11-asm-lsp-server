@@ -105,6 +105,14 @@
     "strings": {
       "patterns": [
         {
+          "name": "constant.character.pdp11asm",
+          "match": "#'[^\\s,]"
+        },
+        {
+          "name": "constant.character-pair.pdp11asm",
+          "match": "#\"[^\\s,]{1,2}"
+        },
+        {
           "name": "string.quoted.double.pdp11asm",
           "begin": "\"",
           "end": "\""

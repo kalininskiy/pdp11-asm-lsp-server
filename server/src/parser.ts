@@ -88,41 +88,7 @@ function parseOperand(
   let register: OperandNode["register"];
   const regPattern = "(R[0-7]|SP|PC|%[0-7])";
 
-  // Поддержка любых выражений
-  const complexExprMatch = trimmed.match(
-    /^(@?#?)([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)([-+][0-9]+(?:[-+][0-9]+)*)$/i
-  );
-
-  if (complexExprMatch) {
-    const prefix = complexExprMatch[1];
-    const symbol = complexExprMatch[2];
-    const offsets = complexExprMatch[3];
-
-    symbolName = symbol;
-    valueText = offsets;
-
-    // Специальная обработка для выражений с точкой (текущий адрес)
-    // .-4, .+2 и т.д. должны быть числами для ветвлений, а не индексным режимом
-    if (symbol === ".") {
-      kind = "number";
-      valueText = trimmed; // сохраняем полное выражение как число
-    } else if (prefix === "@#") {
-      kind = "absolute";
-    } else if (prefix === "#") {
-      kind = "immediate";
-    } else {
-      kind = "index";
-    }
-
-    return {
-      text: trimmed,
-      kind,
-      symbolName,
-      valueText,
-      range: { line, start, end },
-    };
-  }
-
+  // Сначала проверяем специфические паттерны режимов адресации
   const extractValueReference = (value: string): void => {
     const valueTrimmed = value.trim();
     valueText = valueTrimmed;
@@ -173,12 +139,56 @@ function parseOperand(
       } else if (REGISTERS.has(upper)) {
         kind = "register";
         register = normalizeRegister(upper) as OperandNode["register"];
-      } else if (isSymbolToken(normalized)) {
-        kind = "symbol";
-        symbolName = normalized;
-      } else if (NUMBER_RE.test(normalized)) {
-        kind = "number";
-        valueText = normalized;
+      } else {
+        // Поддержка любых выражений (индексные и косвенные)
+        const complexExprMatch = trimmed.match(
+          /^(@?#?)([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)([-+][0-9]+(?:[-+][0-9]+)*)$/i
+        );
+
+        if (complexExprMatch) {
+          const prefix = complexExprMatch[1];
+          const symbol = complexExprMatch[2];
+          const offsets = complexExprMatch[3];
+
+          symbolName = symbol;
+          valueText = offsets;
+
+          // Специальная обработка для выражений с точкой (текущий адрес)
+          // .-4, .+2 и т.д. должны быть числами для ветвлений, а не индексным режимом
+          if (symbol === ".") {
+            kind = "number";
+            valueText = trimmed; // сохраняем полное выражение как число
+          } else if (prefix === "@#") {
+            kind = "absolute";
+          } else if (prefix === "#") {
+            kind = "immediate";
+          } else if (prefix === "@") {
+            const isRegisterName = new RegExp(`^${regPattern}$`, "i").test(symbol);
+            if (isRegisterName && !offsets) {
+              kind = "registerDeferred";
+              symbolName = undefined;
+              valueText = undefined;
+            } else {
+              kind = "absolute";
+            }
+          } else {
+            kind = "symbol";
+          }
+
+          return {
+            text: trimmed,
+            kind,
+            symbolName,
+            valueText,
+            range: { line, start, end },
+          };
+        } else if (isSymbolToken(normalized)) {
+          kind = "symbol";
+          symbolName = normalized;
+        } else if (NUMBER_RE.test(normalized)) {
+          kind = "number";
+          valueText = normalized;
+        }
       }
     }
   }

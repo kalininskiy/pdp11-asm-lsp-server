@@ -2,9 +2,10 @@
   "Startup Code": {
     "prefix": "pdp-hello",
     "body": [
-      "MOV\t#HELLO,R1",
-      "CLR\tR2",
-      "EMT\t20",
+      "\tEMT\t#14",
+      "\tMOV\t#HELLO,R1",
+      "\tCLR\tR2",
+      "\tEMT\t20",
       "STOP:\tHALT",
       "HELLO:\t.ASCIZ \"Hello World!\"",
       "\t.END"
@@ -14,9 +15,10 @@
   "Startup Code lowercase": {
     "prefix": "pdp-hello-lowercase",
     "body": [
-      "mov\t#hello,r1",
-      "clr\tr2",
-      "emt\t20",
+      "\temt\t14",
+      "\tmov\t#hello,r1",
+      "\tclr\tr2",
+      "\temt\t20",
       "STOP:\thalt",
       "HELLO:\t.ASCIZ \"Hello World!\"",
       "\t.end"
@@ -128,7 +130,7 @@
   "SOB LOOP Template": {
     "prefix": "pdp-loop-sobr",
     "body": [
-      "\tMOV\t${1:#100}, R${2:0}",
+      "\tMOV\t$#{1:10}, R${2:0}",
       "${3:LOOP_LABEL}:",
       "\t; loop body",
       "\tSOB\tR${2:0}, ${3:LOOP_LABEL}"
@@ -138,11 +140,47 @@
   "SOB LOOP Template lowercase": {
     "prefix": "pdp-loop-sobr-lowercase",
     "body": [
-      "\tmov\t${1:#100}, R${2:0}",
+      "\tmov\t#${1:10}, R${2:0}",
       "${3:LOOP_LABEL}:",
       "\t; loop body",
       "\tsob\tR${2:0}, ${3:LOOP_LABEL}"
     ],
     "description": "SOB loop template"
+  },
+  "Intercept vector 4 Template": {
+    "prefix": "pdp-vec4",
+    "body": [
+      "\tMOV\t#161716, @#2",
+      "\tMOV\t#2, @#4",
+      "\t"
+    ],
+    "description": "Intercept vector 4 template"
+  },
+  "Intercept vector 4 Template lowercase": {
+    "prefix": "pdp-vec4-lowercase",
+    "body": [
+      "\tmov\t#161716, @#2",
+      "\tmov\t#2, @#4",
+      "\t"
+    ],
+    "description": "Intercept vector 4 template"
+  },
+  "BK11 Stop block Template": {
+    "prefix": "pdp-block-STOP",
+    "body": [
+      "\tMOV\t#10200, @#177716\t;block STOP key",
+      "\t; programm body",
+      "\tMOV\t#200, @#4\t\t;unblock STOP key"
+    ],
+    "description": "BK11 Stop block template"
+  },
+  "BK11 Stop block Template lowercase": {
+    "prefix": "pdp-block-STOP-lowercase",
+    "body": [
+      "\tmov\t#10200, @#177716\t;block STOP key",
+      "\t; programm body",
+      "\tmov\t#200, @#4\t\t;unblock STOP key"
+    ],
+    "description": "BK11 Stop block template"
   }
 }

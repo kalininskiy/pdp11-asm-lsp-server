@@ -778,7 +778,7 @@ export const PDP11_INSTRUCTIONS: Record<string, InstructionMeta> = {
     mnemonic: "CALL",
     description: "Call subroutine",
     operands: 1,
-    allowedDst: ["symbol", "number", "absolute", "registerDeferred", "index", "indexDeferred"],
+    allowedDst: JMP_DST,
     affects: [],
     cycles: "12+",
   },
