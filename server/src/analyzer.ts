@@ -179,17 +179,19 @@ function validateInstruction(meta: InstructionMeta, line: number, operandKinds: 
  * @param program Программа
  * @param uri URI файла
  * @param targetProfileName Имя целевого профиля
+ * @param includeSymbols Карта символов из включённых файлов
+ * @param includeMacros Карта макросов из включённых файлов
  * @returns Результат анализа
  */
-export function analyzeProgram(program: ProgramNode, uri: string, targetProfileName: string): AnalysisResult {
+export function analyzeProgram(program: ProgramNode, uri: string, targetProfileName: string, includeSymbols?: Map<string, SymbolEntry>, includeMacros?: Map<string, number>): AnalysisResult {
   const symbols = new Map<string, SymbolEntry>();
   const diagnostics: Diagnostic[] = [...program.diagnostics];
   const target = TARGET_PROFILES[targetProfileName] ?? TARGET_PROFILES["BK-0010"];
-  const macroSignatures = new Map<string, number>();
+  const macroSignatures = new Map(includeMacros || []);
 
-  // Проверяем наличие .INCLUDE директив
+  // Проверяем наличие INCLUDE директив
   const hasIncludeDirectives = program.statements.some(
-    stmt => stmt.directive?.toUpperCase() === ".INCLUDE"
+    stmt => (stmt.directive?.toUpperCase() === ".INCLUDE" || stmt.directive?.toUpperCase() === "@INCLUDE")
   );
 
   // Добавляем встроенные символы (текущий адрес)
@@ -301,8 +303,8 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
           continue;
         }
         
-        // Не показываем ошибку для имён файлов в .include
-        if (op.symbolName && stmt.directive?.toUpperCase() === ".INCLUDE") { continue; }
+        // Не показываем ошибку для имён файлов в INCLUDE директивах
+        if (op.symbolName && (stmt.directive?.toUpperCase() === ".INCLUDE" || stmt.directive?.toUpperCase() === "@INCLUDE")) { continue; }
         
         // Не показываем ошибку для имён в .script
         if (op.symbolName && stmt.directive?.toUpperCase() === ".SCRIPT") { continue; }
@@ -313,7 +315,10 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
 
         const symbolKey = makeScopedName(rawSymbol, currentScope);
         const globalKey = normalizeSymbolKey(rawSymbol);
-        if (!symbols.has(symbolKey) && !symbols.has(globalKey)) {
+        // Проверяем в символах текущего файла и во включённых файлах
+        const foundInLocal = symbols.has(symbolKey) || symbols.has(globalKey);
+        const foundInIncluded = includeSymbols && (includeSymbols.has(symbolKey) || includeSymbols.has(globalKey));
+        if (!foundInLocal && !foundInIncluded) {
           const severity = hasIncludeDirectives ? DiagnosticSeverity.Information : DiagnosticSeverity.Error;
           diagnostics.push({
             message: hasIncludeDirectives
@@ -341,5 +346,5 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
     }
   }
 
-  return { symbols, diagnostics };
+  return { symbols, diagnostics, macros: macroSignatures };
 }

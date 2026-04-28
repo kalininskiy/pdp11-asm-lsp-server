@@ -62,7 +62,11 @@
       "patterns": [
         {
           "name": "keyword.control.directive.pdp11asm",
-          "match": "(?i)\\.(la|link|word|byte|org|even|print|rad50|radix|addr|flt2|flt4|insert|include|ascii|asciz|blkb|blkw|macro|script|endm|end|ends)\\b"
+          "match": "(?i)\\.(la|link|word|byte|org|even|print|rad50|radix|addr|flt2|flt4|insert|include|ascii|asciz|blkb|blkw|macro|script|endm|end|ends|title|enabl|asect|if|error|endc|rept|endr)\\b"
+        },
+        {
+          "name": "keyword.control.directive.pdp11asm",
+          "match": "(?i)@include\\b"
         },
         {
           "name": "keyword.control.directive.pdp11asm",

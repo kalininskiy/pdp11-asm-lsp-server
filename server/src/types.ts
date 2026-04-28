@@ -115,4 +115,5 @@ export interface TargetProfile {
 export interface AnalysisResult {
   symbols: Map<string, SymbolEntry>;
   diagnostics: Diagnostic[];
+  macros: Map<string, number>;
 }

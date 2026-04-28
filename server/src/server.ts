@@ -34,6 +34,7 @@ const diagnosticsByUri = new Map<string, Diagnostic[]>();
 const symbolIndex = new Map<string, { key: string; displayName: string; uri: string; line: number; start: number; end: number; scope?: string }>();
 const analysisScopes = new Map<string, string[]>();
 const documentSymbols = new Map<string, Map<string, SymbolEntry>>(); // Хранилище символов для каждого открытого документа
+const documentMacros = new Map<string, Map<string, number>>();       // Хранилище макросов для каждого открытого документа
 const documentScopes = new Map<string, string[]>();                  // Хранилище scopes для каждой строки каждого документа
 
 let targetProfile = "BK-0010";
@@ -108,15 +109,18 @@ export function getIncludeFileLocation(document: TextDocument, line: number, cha
 
   // Поддержка .include file.asm и .include "file.asm"
   const includeMatch = lineText.match(/^\s*\.include\s+(?:"([^"]+)"|(\S+))/i);
-  if (!includeMatch) {
+  const atIncludeMatch = lineText.match(/^\s*@include\s+(?:"([^"]+)"|(\S+))/i);
+
+  const match = includeMatch || atIncludeMatch;
+  if (!match) {
     return null;
   }
 
-  const fileName = includeMatch[1] || includeMatch[2];
+  const fileName = match[1] || match[2];
   if (!fileName) return null;
 
   // Проверяем, находится ли курсор внутри имени файла
-  const matchStart = includeMatch.index || 0;
+  const matchStart = match.index || 0;
   const fileNameStart = lineText.indexOf(fileName, matchStart);
   const fileNameEnd = fileNameStart + fileName.length;
 
@@ -142,7 +146,7 @@ export function getIncludeFileLocation(document: TextDocument, line: number, cha
 }
 
 /**
- * Загружает текст всех .include файлов, упомянутых в данном документе, и возвращает их в виде массива объектов с URI и текстом
+ * Загружает текст всех .include и @include файлов, упомянутых в данном документе, и возвращает их в виде массива объектов с URI и текстом
  * 
  * @param document Текстовый документ, для которого нужно загрузить .include файлы
  * @returns Массив объектов с URI и текстом включенных файлов
@@ -155,10 +159,11 @@ function loadIncludes(document: TextDocument): Array<{ uri: string; text: string
   const baseDir = path.dirname(docPath);
   const text = document.getText();
 
-  // Поддержка .include file.asm и .include "file.asm"
-  const includeRegex = /^\s*\.include\s+(?:"([^"]+)"|(\S+))/gim;
+  // Поддержка .include и @include с указанием файла с кавычками или без
+  const includeRegex = /^\s*(?:\.include|@include)\s+(?:"([^"]+)"|(\S+))/gim;
 
   let match: RegExpExecArray | null;
+
   while ((match = includeRegex.exec(text)) !== null) {
     const fileName = match[1] || match[2];
     if (!fileName) continue;
@@ -220,25 +225,47 @@ function mergeDiagnostics(uri: string, ...diagnosticSets: Diagnostic[][]): Diagn
 function rebuildSymbolIndex(mainUri: string, mainText: string, includes: Array<{ uri: string; text: string }>): void {
   // Очищаем только данные для текущего основного файла
   documentSymbols.delete(mainUri);
+  documentMacros.delete(mainUri);
   documentScopes.delete(mainUri);
 
-  // Парсим основной файл
-  const mainProgram = parseProgram(mainText);
-  const mainAnalysis = analyzeProgram(mainProgram, mainUri, targetProfile);
-  const mainScopes = computeLineScopes(mainText);
-
-  documentScopes.set(mainUri, mainScopes);
-  documentSymbols.set(mainUri, mainAnalysis.symbols);
-
-  // Добавляем include-файлы
+  // Сначала обрабатываем include-файлы и собираем их символы и макросы
+  const allIncludeSymbols = new Map<string, SymbolEntry>();
+  const allIncludeMacros = new Map<string, number>();
   for (const inc of includes) {
-    if (documentSymbols.has(inc.uri)) continue; // уже обработан
+    if (documentSymbols.has(inc.uri)) {
+      // Уже обработан, но добавляем его символы и макросы в общие карты
+      for (const [key, sym] of documentSymbols.get(inc.uri)!) {
+        allIncludeSymbols.set(key, sym);
+      }
+      for (const [key, macro] of documentMacros.get(inc.uri)!) {
+        allIncludeMacros.set(key, macro);
+      }
+      continue;
+    }
 
     const incProgram = parseProgram(inc.text);
     const incAnalysis = analyzeProgram(incProgram, inc.uri, targetProfile);
 
     documentSymbols.set(inc.uri, incAnalysis.symbols);
+    documentMacros.set(inc.uri, incAnalysis.macros);
+    
+    // Добавляем символы и макросы из этого include файла в общие карты
+    for (const [key, sym] of incAnalysis.symbols) {
+      allIncludeSymbols.set(key, sym);
+    }
+    for (const [key, macro] of incAnalysis.macros) {
+      allIncludeMacros.set(key, macro);
+    }
   }
+
+  // Теперь парсим и анализируем основной файл, передав include-символы и макросы
+  const mainProgram = parseProgram(mainText);
+  const mainAnalysis = analyzeProgram(mainProgram, mainUri, targetProfile, allIncludeSymbols, allIncludeMacros);
+  const mainScopes = computeLineScopes(mainText);
+
+  documentScopes.set(mainUri, mainScopes);
+  documentSymbols.set(mainUri, mainAnalysis.symbols);
+  documentMacros.set(mainUri, mainAnalysis.macros);
 
   // Перестраиваем глобальный symbolIndex (для быстрого поиска)
   symbolIndex.clear();
@@ -329,8 +356,23 @@ async function validateDocument(document: TextDocument): Promise<void> {
   const mainText = document.getText();
   const includes = loadIncludes(document);
 
+  // Собираем символы и макросы из include-файлов
+  const allIncludeSymbols = new Map<string, SymbolEntry>();
+  const allIncludeMacros = new Map<string, number>();
+  for (const inc of includes) {
+    const incProgram = parseProgram(inc.text);
+    const incAnalysis = analyzeProgram(incProgram, inc.uri, targetProfile);
+    for (const [key, sym] of incAnalysis.symbols) {
+      allIncludeSymbols.set(key, sym);
+    }
+    for (const [key, macro] of incAnalysis.macros) {
+      allIncludeMacros.set(key, macro);
+    }
+  }
+
+  // Анализируем основной файл, передав include-символы и макросы
   const program = parseProgram(mainText);
-  const analysis = analyzeProgram(program, document.uri, targetProfile);
+  const analysis = analyzeProgram(program, document.uri, targetProfile, allIncludeSymbols, allIncludeMacros);
   const externalDiagnostics = await collectExternalAssemblerDiagnostics(document.uri, toolchainSettings);
   const merged = mergeDiagnostics(document.uri, analysis.diagnostics, externalDiagnostics);
 

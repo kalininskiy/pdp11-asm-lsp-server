@@ -32,10 +32,10 @@ const MEMORY_MODES: OperandKind[] = [
 /**
  * Предопределенные наборы разрешенных операндов для различных типов инструкций
  */
-const ANY_DST: OperandKind[] = ["register", ...MEMORY_MODES]; // Регистр может быть только источником, а не назначением в некоторых инструкциях, поэтому он не включается в ANY_SRC
-const ANY_SRC: OperandKind[] = [...ANY_DST, "immediate"];     // Источник может быть непосредственным значением, но назначение не может
-const BRANCH_DST: OperandKind[] = ["symbol", "number"];       // Назначение для команд перехода должно быть меткой или числом
-const JMP_DST: OperandKind[] = ["register", ...MEMORY_MODES]; // Назначение для команды JMP должно быть регистром или режимом адресации
+const ANY_DST: OperandKind[] = ["register", "immediate", ...MEMORY_MODES]; // Регистр может быть только источником, а не назначением в некоторых инструкциях, поэтому он не включается в ANY_SRC
+const ANY_SRC: OperandKind[] = [...ANY_DST, "register", "immediate"];      // Источник может быть непосредственным значением, но назначение не может
+const BRANCH_DST: OperandKind[] = ["symbol", "number"];                    // Назначение для команд перехода должно быть меткой или числом
+const JMP_DST: OperandKind[] = ["register", ...MEMORY_MODES];              // Назначение для команды JMP должно быть регистром или режимом адресации
 
 /**
  * Таблица инструкций PDP-11 с их метаданными для валидации и предоставления информации в LSP-сервере
@@ -827,6 +827,15 @@ export const DIRECTIVES = new Set([
   ".ENDS",
   "EQU",
   "=",
+  ".TITLE",
+  ".ENABL",
+  ".ASECT",
+  "@INCLUDE",
+  ".IF",
+  ".ERROR",
+  ".ENDC",
+  ".REPT",
+  ".ENDR",
 ]);
 
 /**

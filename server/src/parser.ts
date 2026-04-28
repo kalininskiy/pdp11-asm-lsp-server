@@ -141,43 +141,93 @@ function parseOperand(
         register = normalizeRegister(upper) as OperandNode["register"];
       } else {
         // Поддержка любых выражений (индексные и косвенные)
-        const complexExprMatch = trimmed.match(
-          /^(@?#?)([A-Za-z_.$@?][A-Za-z0-9_.$@?]*)([-+][0-9]+(?:[-+][0-9]+)*)$/i
+        // Расширенная поддержка для символов с смещениями, локальных меток и других выражений
+        
+        // Сначала пробуем максимально общее выражение
+        let match = trimmed.match(
+          /^(@?#?)([A-Za-z0-9_.$@?][A-Za-z0-9_.$@?]*)(.*)$/i
         );
 
-        if (complexExprMatch) {
-          const prefix = complexExprMatch[1];
-          const symbol = complexExprMatch[2];
-          const offsets = complexExprMatch[3];
+        if (match) {
+          const prefix = match[1];
+          const symbol = match[2];
+          const suffixAndOffsets = match[3].trim();
 
-          symbolName = symbol;
-          valueText = offsets;
-
-          // Специальная обработка для выражений с точкой (текущий адрес)
-          // .-4, .+2 и т.д. должны быть числами для ветвлений, а не индексным режимом
-          if (symbol === ".") {
-            kind = "number";
-            valueText = trimmed; // сохраняем полное выражение как число
-          } else if (prefix === "@#") {
+          // Обработка операндов с префиксом
+          if (prefix === "@#") {
             kind = "absolute";
+            symbolName = symbol;
+            valueText = suffixAndOffsets || undefined;
+            return {
+              text: trimmed,
+              kind,
+              symbolName,
+              valueText,
+              range: { line, start, end },
+            };
           } else if (prefix === "#") {
             kind = "immediate";
+            // Поддержка символьных литералов (#'x) и масок (#^B...)
+            if (trimmed.match(/^#'(.*)$/)) {
+              valueText = trimmed.slice(2);
+            } else if (trimmed.match(/^#\^[BOX]/i)) {
+              valueText = trimmed.slice(1);
+            } else if (trimmed.match(/^\d+$/)) {
+              valueText = trimmed.slice(1);
+            } else {
+              valueText = trimmed.slice(1);
+              symbolName = symbol;
+            }
+            return {
+              text: trimmed,
+              kind,
+              symbolName: symbol,
+              valueText,
+              range: { line, start, end },
+            };
           } else if (prefix === "@") {
+            // Проверяем регистр
             const isRegisterName = new RegExp(`^${regPattern}$`, "i").test(symbol);
-            if (isRegisterName && !offsets) {
+            if (isRegisterName && !suffixAndOffsets) {
               kind = "registerDeferred";
               symbolName = undefined;
               valueText = undefined;
             } else {
               kind = "absolute";
+              symbolName = symbol;
+              valueText = suffixAndOffsets || undefined;
             }
-          } else {
+            return {
+              text: trimmed,
+              kind,
+              symbolName,
+              valueText,
+              range: { line, start, end },
+            };
+          }
+
+          // Без префикса - это может быть символ, число, или регистр
+          if (REGISTERS.has(symbol.toUpperCase())) {
+            kind = "register";
+            register = normalizeRegister(symbol) as OperandNode["register"];
+          } else if (NUMBER_RE.test(symbol)) {
+            // Это число в PDP-11 формате
+            kind = "number";
+            valueText = symbol;
+          } else if (isSymbolToken(symbol)) {
+            // Это валидный символ (идентификатор или локальная метка)
             kind = "symbol";
+            symbolName = symbol;
+            valueText = suffixAndOffsets || undefined;
+          } else {
+            // Неизвестное выражение - оставляем как unknown
+            kind = "unknown";
           }
 
           return {
             text: trimmed,
             kind,
+            register,
             symbolName,
             valueText,
             range: { line, start, end },
@@ -444,7 +494,7 @@ export function parseProgram(text: string): ProgramNode {
       });
     }
 
-    if (headUpper.startsWith(".") || headUpper === "EQU") {
+    if (headUpper.startsWith(".") || headUpper === "EQU" || headUpper === "@INCLUDE") {
       stmt.directive = headUpper;
       if (!DIRECTIVES.has(headUpper)) {
         diagnostics.push({
@@ -454,8 +504,9 @@ export function parseProgram(text: string): ProgramNode {
         });
       }
 
-      if (headUpper === ".INCLUDE") {
+      if (headUpper === ".INCLUDE" || headUpper === "@INCLUDE") {
         stmt.directive = ".INCLUDE";
+        if (headUpper === "@INCLUDE") stmt.directive = "@INCLUDE";
 
         // Поддержка вариантов:
         // .include file.asm
