@@ -7,6 +7,22 @@ import * as fs from 'fs';
 
 let client: LanguageClient | undefined;
 const CONFIG_SECTION = "pdp11";
+const outputChannels = new Map<string, vscode.OutputChannel>();
+
+/**
+ * Возвращает существующий или создаёт новый OutputChannel с заданным именем
+ * 
+ * @param name имя канала вывода
+ * @returns 
+ */
+function getOutputChannel(name: string): vscode.OutputChannel {
+  let channel = outputChannels.get(name);
+  if (!channel) {
+    channel = vscode.window.createOutputChannel(name);
+    outputChannels.set(name, channel);
+  }
+  return channel;
+}
 
 /**
  * Позволяет пользователю выбрать исполняемый файл и сохраняет его путь в настройках
@@ -102,9 +118,10 @@ async function runAssembler(assembler: string, pathKey: string): Promise<void> {
               }
 
               if (output) {
-                const channel = vscode.window.createOutputChannel(`${assembler} Output`);
+                const channel = getOutputChannel(`${assembler} Output`);
+                channel.clear();
                 channel.appendLine(output);
-                channel.show();
+                channel.show(true);
               }
             }
             resolve();
@@ -223,8 +240,8 @@ async function runInEmulator(filePath: string): Promise<void> {
     const cmd = `"${emuPath}" /C "BK-0010-01" /B "${binPath}"`;
     const emuDir = path.dirname(emuPath);
     
-    const outputChannel = vscode.window.createOutputChannel('PDP-11 Emulator');
-    outputChannel.appendLine('=== PDP-11 Emulator Launch ===');
+    const outputChannel = getOutputChannel('PDP-11 Emulator');
+    outputChannel.clear();
     outputChannel.appendLine('Команда: ' + cmd);
     outputChannel.appendLine('Рабочая папка: ' + emuDir);
     outputChannel.appendLine('BIN файл: ' + binPath);

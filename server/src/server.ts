@@ -296,28 +296,32 @@ function normalizeSymbolKey(name: string): string {
  * @returns 
  */
 function resolveSymbolKey(uri: string, line: number, symbol: string): string | undefined {
-  const upper = normalizeName(symbol);
+  if (!symbol) return undefined;
 
-  // 1. Локальный символ в текущем файле (высший приоритет)
-  if (isLocalSymbol(symbol)) {
+  // Убираем префикс @ 
+  const cleanSymbol = symbol.replace(/^@+/, "").toUpperCase();
+
+  // 1. Локальный символ
+  if (isLocalSymbol(cleanSymbol)) {
     const scope = analysisScopes.get(uri)?.[line] ?? "__FILE__";
-    const scopedKey = `${scope}::${upper}`;
+    const scopedKey = `${scope}::${cleanSymbol}`;
     if (symbolIndex.has(scopedKey)) {
       return scopedKey;
     }
   }
 
-  // 2. Глобальный символ (из основного файла или любого include)
-  if (symbolIndex.has(upper)) {
-    return upper;
+  // 2. Глобальный символ
+  if (symbolIndex.has(cleanSymbol)) {
+    return cleanSymbol;
   }
 
   // 3. Поиск по displayName
   for (const [key, entry] of symbolIndex) {
-    if (entry.displayName.toUpperCase() === upper) {
+    if (entry.displayName.toUpperCase() === cleanSymbol) {
       return key;
     }
   }
+
   return undefined;
 }
 

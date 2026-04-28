@@ -309,12 +309,10 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
 
         const rawSymbol = op.symbolName.replace(/^@+/, "");
         const isRegisterRef = /^(r[0-7]|sp|pc|%[0-7])$/i.test(rawSymbol);
-        if ((op.kind === "index" || op.kind === "absolute" || op.kind === "registerDeferred" || op.kind === "register") && isRegisterRef) {
-          continue;
-        }
+        if (isRegisterRef) { continue; }
 
-        const symbolKey = makeScopedName(op.symbolName, currentScope);
-        const globalKey = normalizeSymbolKey(op.symbolName);
+        const symbolKey = makeScopedName(rawSymbol, currentScope);
+        const globalKey = normalizeSymbolKey(rawSymbol);
         if (!symbols.has(symbolKey) && !symbols.has(globalKey)) {
           const severity = hasIncludeDirectives ? DiagnosticSeverity.Information : DiagnosticSeverity.Error;
           diagnostics.push({
