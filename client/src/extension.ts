@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from "vscode-languageclient/node";
 import * as cp from "node:child_process";
 import * as fs from 'fs';
+import iconv from "iconv-lite";
 
 let client: LanguageClient | undefined;
 const CONFIG_SECTION = "pdp11";
@@ -92,16 +93,31 @@ async function runAssembler(assembler: string, pathKey: string): Promise<void> {
     },
     async (progress) => {
       return new Promise<void>((resolve) => {
+        const decodeBuffer = (buffer: Buffer | string | undefined): string => {
+          if (!buffer) {
+            return "";
+          }
+          const data = typeof buffer === "string" ? Buffer.from(buffer, "utf8") : buffer;
+          if (assembler === "bkturbo8") {
+            return iconv.decode(data, "cp1251");
+          }
+          return data.toString("utf8");
+        };
+
         execFile(
           executable,
           args,
           {
             timeout: timeoutMs,
             windowsHide: true,
-            cwd: path.dirname(filePath)
+            cwd: path.dirname(filePath),
+            encoding: "buffer"
           },
           (error, stdout, stderr) => {
-            const output = `${stdout ?? ""}\n${stderr ?? ""}`.trim();
+            const stdoutText = decodeBuffer(stdout);
+            const stderrText = decodeBuffer(stderr);
+            const output = [stdoutText, stderrText].filter((text) => text.length > 0).join("\n\n").trim();
+
             if (error) {
               void vscode.window.showErrorMessage(`Assembler failed: ${output || error.message}`);
             } else {
