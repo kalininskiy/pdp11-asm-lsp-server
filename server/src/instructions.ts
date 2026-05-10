@@ -796,6 +796,38 @@ export const PDP11_INSTRUCTIONS: Record<string, InstructionMeta> = {
     affects: [],
     cycles: "10",
   },
+  PUSH: {
+    mnemonic: "PUSH",
+    description: "Push word onto stack (MOV src, -(SP))",
+    operands: 1,
+    allowedDst: ANY_SRC,
+    affects: [],
+    cycles: "8+",
+  },
+  PUSHB: {
+    mnemonic: "PUSHB",
+    description: "Push byte onto stack (MOVB src, -(SP))",
+    operands: 1,
+    allowedDst: ANY_SRC,
+    affects: [],
+    cycles: "8+",
+  },
+  POP: {
+    mnemonic: "POP",
+    description: "Pop word from stack (MOV (SP)+, dst)",
+    operands: 1,
+    allowedDst: ANY_DST,
+    affects: [],
+    cycles: "8+",
+  },
+  POPB: {
+    mnemonic: "POPB",
+    description: "Pop byte from stack (MOVB (SP)+, dst)",
+    operands: 1,
+    allowedDst: ANY_DST,
+    affects: [],
+    cycles: "8+",
+  },
 };
 
 /**

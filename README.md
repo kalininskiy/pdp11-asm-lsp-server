@@ -2,7 +2,7 @@
 
 LSP-сервер (Language Server Protocol) с поддержкой языка **ассемблера PDP-11** в VS Code с интеграцией инструментов разработки.
 
-![Version](https://img.shields.io/badge/version-0.2.6-blue)
+![Version](https://img.shields.io/badge/version-0.2.7-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.85.0-blue)
 
@@ -94,8 +94,9 @@ HELLO:  .ASCIZ "Hello World!"
 **Установка:**
 ```bash
 pip install pdpy11
-# или
-brew install pdpy11  # macOS
+# или в macOS
+brew install pipx
+pipx install pdpy11
 ```
 
 **Исходники:** https://github.com/pdpy11/pdpy11

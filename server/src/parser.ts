@@ -104,6 +104,14 @@ function parseOperand(
   } else if (trimmed.startsWith("#")) {
     kind = "immediate";
     extractValueReference(trimmed.slice(1));
+  } else if (trimmed.match(/^<[^>]+>$/)) {
+    // Поддержка синтаксиса <выражение> для режима адресации
+    kind = "absolute";
+    extractValueReference(trimmed.slice(1, -1));
+  } else if (trimmed.match(/^\[[^\]]+\]$/)) {
+    // Поддержка синтаксиса [выражение] для режима адресации
+    kind = "absolute";
+    extractValueReference(trimmed.slice(1, -1));
   } else if (new RegExp(`^@-\\(${regPattern}\\)$`, "i").test(upper)) {
     kind = "autodecrementDeferred";
     register = normalizeRegister(upper.slice(3, -1)) as OperandNode["register"];
@@ -262,16 +270,26 @@ function parseOperand(
 function splitOperands(raw: string): Array<{ text: string; start: number }> {
   const result: Array<{ text: string; start: number }> = [];
   let current = "";
-  let depth = 0;
+  let parenDepth = 0;  // Отслеживаем глубину круглых скобок ()
+  let bracketDepth = 0; // Отслеживаем глубину квадратных скобок []
+  let angleDepth = 0;  // Отслеживаем глубину угловых скобок <>
   let start = 0;
 
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i];
     if (ch === "(") {
-      depth++;
+      parenDepth++;
     } else if (ch === ")") {
-      depth = Math.max(0, depth - 1);
-    } else if (ch === "," && depth === 0) {
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (ch === "[") {
+      bracketDepth++;
+    } else if (ch === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+    } else if (ch === "<") {
+      angleDepth++;
+    } else if (ch === ">") {
+      angleDepth = Math.max(0, angleDepth - 1);
+    } else if (ch === "," && parenDepth === 0 && bracketDepth === 0 && angleDepth === 0) {
       result.push({ text: current, start });
       current = "";
       start = i + 1;
