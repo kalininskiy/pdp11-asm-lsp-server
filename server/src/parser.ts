@@ -316,7 +316,8 @@ export function parseProgram(text: string): ProgramNode {
   const knownMacros = new Set<string>();
   const registerAliases = new Map<string, string>();
   let inBlockComment = false; // Состояние для отслеживания многострочных комментариев /* ... */
-  let openMacro: { name: string; startLine: number } | undefined;
+  // Stack of open repetition/macro blocks (.MACRO or .REPT); top = last opened
+  const blockStack: Array<{ kind: "macro" | "rept"; name: string; startLine: number }> = [];
   let inScript = false;
   let openScript: { name: string; startLine: number } | undefined;
 
@@ -604,7 +605,7 @@ export function parseProgram(text: string): ProgramNode {
         } else {
           const macroName = macroParts[0];
           knownMacros.add(macroName.toUpperCase());
-          openMacro = { name: macroName, startLine: lineIndex };
+          blockStack.push({ kind: "macro", name: macroName, startLine: lineIndex });
           stmt.macroDefinition = {
             name: macroName,
             parameters: macroParts.slice(1).map((p) => p.replace(/,$/, "")),
@@ -612,21 +613,47 @@ export function parseProgram(text: string): ProgramNode {
             endLine: lineIndex,
           };
         }
-      } else if (headUpper === ".ENDM") {
-        if (!openMacro) {
+      } else if (headUpper === ".REPT") {
+        // .REPT opens a repetition block; closed by .ENDR or .ENDM
+        blockStack.push({ kind: "rept", name: ".REPT", startLine: lineIndex });
+      } else if (headUpper === ".ENDR") {
+        // .ENDR closes the nearest open block (should be .REPT, but tolerate any)
+        if (blockStack.length === 0) {
           diagnostics.push({
-            message: ".ENDM without matching .MACRO",
+            message: ".ENDR without matching .REPT",
             severity: DiagnosticSeverity.Error,
             range: range(lineIndex, 0, head.length),
           });
         } else {
-          stmt.macroDefinition = {
-            name: openMacro.name,
-            parameters: [],
-            startLine: openMacro.startLine,
-            endLine: lineIndex,
-          };
-          openMacro = undefined;
+          const top = blockStack[blockStack.length - 1];
+          if (top.kind !== "rept") {
+            diagnostics.push({
+              message: ".ENDR closes a .REPT but found open .MACRO",
+              severity: DiagnosticSeverity.Warning,
+              range: range(lineIndex, 0, head.length),
+            });
+          }
+          blockStack.pop();
+        }
+      } else if (headUpper === ".ENDM") {
+        // .ENDM closes the nearest open block — either .MACRO or .REPT (MACRO-11 compatible)
+        if (blockStack.length === 0) {
+          diagnostics.push({
+            message: ".ENDM without matching .MACRO or .REPT",
+            severity: DiagnosticSeverity.Error,
+            range: range(lineIndex, 0, head.length),
+          });
+        } else {
+          const top = blockStack[blockStack.length - 1];
+          if (top.kind === "macro") {
+            stmt.macroDefinition = {
+              name: top.name,
+              parameters: [],
+              startLine: top.startLine,
+              endLine: lineIndex,
+            };
+          }
+          blockStack.pop();
         }
       }
     } else if (knownMacros.has(headUpper)) {
@@ -656,14 +683,15 @@ export function parseProgram(text: string): ProgramNode {
     statements.push(stmt);
   }
 
-  if (openMacro) {
+  for (const block of blockStack) {
+    const directive = block.kind === "macro" ? ".MACRO" : ".REPT";
     diagnostics.push({
-      message: `.MACRO '${openMacro.name}' is not terminated by .ENDM`,
+      message: `${directive} '${block.name}' is not terminated by .ENDM`,
       severity: DiagnosticSeverity.Error,
       range: range(
-        openMacro.startLine,
+        block.startLine,
         0,
-        lines[openMacro.startLine]?.length ?? 0,
+        lines[block.startLine]?.length ?? 0,
       ),
     });
   }

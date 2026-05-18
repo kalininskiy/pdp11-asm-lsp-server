@@ -309,6 +309,10 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
         // Не показываем ошибку для имён в .script
         if (op.symbolName && stmt.directive?.toUpperCase() === ".SCRIPT") { continue; }
 
+        // Не показывамен ошибку для аргументов директив, которые не являются символами
+        if (op.symbolName && [".TITLE", ".ENABL", ".IF", ".ERROR"].includes(stmt.directive?.toUpperCase() || "")) { continue; }
+
+
         const rawSymbol = op.symbolName.replace(/^@+/, "");
         const isRegisterRef = /^(r[0-7]|sp|pc|%[0-7])$/i.test(rawSymbol);
         if (isRegisterRef) { continue; }
@@ -322,7 +326,8 @@ export function analyzeProgram(program: ProgramNode, uri: string, targetProfileN
           const severity = hasIncludeDirectives ? DiagnosticSeverity.Information : DiagnosticSeverity.Error;
           diagnostics.push({
             message: hasIncludeDirectives
-              ? `Symbol '${op.symbolName}' may be defined in included module`
+              // ? `Symbol '${op.symbolName}' may be defined in included module`
+              ? ``
               : `Unresolved symbol '${op.symbolName}'`,
             severity,
             range: range(op.range.line, op.range.start, op.range.end)
